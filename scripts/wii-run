@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Build the Dolphin/dev DOL (RelWithDebInfo + CREATE_LOG) and run it.
+# Uses sd/ as the virtual Wii SD card. Press 1+2 on the Wiimote to sync.
+set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd)/wii-common.sh"
+
+wii_require_data
+emu="$(wii_find_dolphin)"
+wii_write_dolphin_config
+wii_configure_and_build "$DEV_BUILD_DIR" RelWithDebInfo ON
+wii_inject_boot_dol
+wii_enable_bluetooth
+printf 'starting %s\n' "$emu"
+printf 'Wiimote: press 1+2 together (nunchuk can stay attached). Continuous scan is on.\n'
+
+set +e
+"$emu" --user="$DOLPHIN_USER" --exec="$BOOT_DOL"
+status=$?
+set -e
+wii_extract_debug_log
+if [[ -f "$SD_APP/debug.log" ]]; then
+	printf 'debug.log -> %s\n' "$SD_APP/debug.log"
+fi
+exit "$status"

@@ -380,3 +380,11 @@ build-wii.bat
 
 # build
 build-wii/
+build-wii-dev/
+build-wii-release/
+
+# local Dolphin user dir (Wiimote/SD config, sd.raw)
+.dolphin/
+
+# PC Vice City assets + boot.dol live here; not source
+sd/

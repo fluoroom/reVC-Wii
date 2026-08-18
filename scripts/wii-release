@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+# Build the real-Wii DOL (Release, no CREATE_LOG) into sd/apps/reVC/boot.dol.
+# Copy that folder onto a FAT32 SD card; do not use this build for Dolphin iteration.
+set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd)/wii-common.sh"
+
+wii_require_data
+wii_configure_and_build "$RELEASE_BUILD_DIR" Release OFF
+
+printf 'release DOL ready at %s\n' "$BOOT_DOL"
+printf 'copy sd/apps/reVC/ to the Wii SD card as apps/reVC/\n'

@@ -24,7 +24,13 @@
 // again; WiiTraceHeap walks the whole heap through mallinfo; and the watchdog is
 // a thread with an 8KB stack waking once a second.  At 0 none of that is
 // compiled in, and the watchdog is never started.
+//
+// Default is off (real-Wii release).  The CMake WII_CREATE_LOG option defines
+// this before the header is parsed so the Dolphin/dev build can turn it on
+// without editing the source.
+#ifndef CREATE_LOG
 #define CREATE_LOG 0
+#endif
 
 // Opens debug.log inside the given directory, and does nothing if one is already
 // open, so it can be called again later with a better guess.  Does nothing at

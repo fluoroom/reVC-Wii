@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Rebuild .dolphin/Load/WiiSD.raw from the sd/ folder (game assets).
+# Needed once, and again if you change files under sd/ besides boot.dol.
+set -euo pipefail
+source "$(cd "$(dirname "$0")" && pwd)/wii-common.sh"
+
+wii_write_dolphin_config
+wii_pack_sd_image

@@ -1,5 +1,6 @@
 if(NINTENDO_WII)
     option(WII_GAME_BOOT "Build the staged reVC game boot instead of the GX asset viewer" OFF)
+    option(WII_CREATE_LOG "Compile Wii debug.log / SYS_Report tracing (Dolphin/dev only)" OFF)
 
     if(WII_GAME_BOOT)
         file(GLOB_RECURSE WII_GAME_SOURCES "*.cpp" "*.h")
@@ -54,9 +55,16 @@ if(NINTENDO_WII)
             ${WII_GAME_INCLUDE_DIRS}
             ${WII_MPG123_INCLUDE_DIR}
         )
+        if(WII_CREATE_LOG)
+            set(_wii_create_log 1)
+        else()
+            set(_wii_create_log 0)
+        endif()
+        message(STATUS "WII_CREATE_LOG = ${WII_CREATE_LOG}")
         target_compile_definitions(${EXECUTABLE} PRIVATE
             NINTENDO_WII RW_GX AUDIO_WII LIBRW CMAKE_BUILD USE_OUR_VERSIONING NDEBUG
             BIGENDIAN rwBIGENDIAN
+            CREATE_LOG=${_wii_create_log}
         )
         target_compile_options(${EXECUTABLE} PRIVATE -w -fshort-wchar)
         set_target_properties(${EXECUTABLE} PROPERTIES
