@@ -9,6 +9,9 @@
 #include "Frontend.h"
 #include "Font.h"
 #include "Pad.h"
+#ifdef NINTENDO_WII
+#include "WiiPad.h"
+#endif
 #include "Radar.h"
 #include "Replay.h"
 #include "Wanted.h"
@@ -246,7 +249,11 @@ void CHud::Draw()
 		if (Mode == CCam::MODE_M16_1STPERSON_RUNABOUT || Mode == CCam::MODE_ROCKETLAUNCHER_RUNABOUT || Mode == CCam::MODE_SNIPER_RUNABOUT)
 			DrawCrossHairPC = true;
 		if (TheCamera.Cams[TheCamera.ActiveCam].Using3rdPersonMouseCam() && (!CPad::GetPad(0)->GetLookBehindForPed() || TheCamera.m_bPlayerIsInGarage)
-			|| Mode == CCam::MODE_1STPERSON_RUNABOUT) {
+			|| Mode == CCam::MODE_1STPERSON_RUNABOUT
+#ifdef NINTENDO_WII
+			|| WiiPadPointerAimActive()
+#endif
+			) {
 			if (playerPed) {
 				if (playerPed->m_nPedState != PED_ENTER_CAR && playerPed->m_nPedState != PED_CARJACK) {
 
@@ -258,6 +265,10 @@ void CHud::Draw()
 				}
 			}
 		}
+#ifdef NINTENDO_WII
+		if (WiiPadPointerAimActive())
+			DrawCrossHairPC = true;
+#endif
 
 		if (DrawCrossHair || DrawCrossHairPC) {
 			RwRenderStateSet(rwRENDERSTATETEXTUREFILTER, (void *)rwFILTERLINEAR);
@@ -269,7 +280,11 @@ void CHud::Draw()
 			float fStep = Sin((CTimer::GetTimeInMilliseconds() & 1023)/1024.0f * 6.28f);
 			float fMultBright = SpriteBrightness * 0.03f * (0.25f * fStep + 0.75f);
 			CRect rect;
-			if (DrawCrossHairPC && TheCamera.Cams[TheCamera.ActiveCam].Using3rdPersonMouseCam()) {
+			if (DrawCrossHairPC && (TheCamera.Cams[TheCamera.ActiveCam].Using3rdPersonMouseCam()
+#ifdef NINTENDO_WII
+				|| WiiPadPointerAimActive()
+#endif
+				)) {
 				float f3rdX = SCREEN_WIDTH * TheCamera.m_f3rdPersonCHairMultX;
 				float f3rdY = SCREEN_HEIGHT * TheCamera.m_f3rdPersonCHairMultY;
 #ifdef ASPECT_RATIO_SCALE

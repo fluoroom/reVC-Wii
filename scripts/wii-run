@@ -11,7 +11,9 @@ wii_configure_and_build "$DEV_BUILD_DIR" RelWithDebInfo ON
 wii_inject_boot_dol
 wii_enable_bluetooth
 printf 'starting %s\n' "$emu"
+printf 'this tree: %s\n' "$ROOT"
 printf 'Wiimote: press 1+2 together (nunchuk can stay attached). Continuous scan is on.\n'
+printf 'Nunchuk map: C jump / car handbrake, B fire or car brake, Z+stick look.\n'
 
 set +e
 "$emu" --user="$DOLPHIN_USER" --exec="$BOOT_DOL"

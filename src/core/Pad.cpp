@@ -906,11 +906,12 @@ void CPad::UpdateMouse()
 	WiiPadUpdateRumble();
 
 	OldMouseControllerState = NewMouseControllerState;
-	// The Wiimote pointer is the mouse on this platform.  It reports a turn rate
-	// in game and drives the frontend cursor in a menu, and reports nothing at
-	// all while it is aimed near the centre of the screen or away from the sensor
-	// bar -- which is what leaves CPad::LookAroundLeftRight in charge of the
-	// camera, since Cam.cpp only prefers the mouse when x or y is non-zero.
+	// The Wiimote pointer is the mouse on this platform.  Menus get an absolute
+	// cursor.  In game it reports a turn rate only on a bare Wiimote or in a
+	// 1st-person weapon scope; with a nunchuk it writes CHair while aiming a gun
+	// and otherwise reports nothing, which is what leaves CPad::LookAroundLeftRight
+	// (Z+stick) in charge of Classic follow-cam.  Cam.cpp only prefers the mouse
+	// when x or y is non-zero.
 	WiiPadCaptureMouse(PCTempMouseControllerState);
 	NewMouseControllerState = PCTempMouseControllerState;
 #elif defined RW_D3D9 || defined RWLIBS

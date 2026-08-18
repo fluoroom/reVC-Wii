@@ -472,14 +472,22 @@ CMenuManager::CMenuManager()
 	m_PrefsMusicVolume = 49;
 	m_PrefsRadioStation = 0;
 	m_PrefsStereoMono = 1;
+#ifdef NINTENDO_WII
+	m_PrefsBrightness = 384;
+	m_PrefsLOD = 1.8f;
+	CRenderer::ms_lodDistScale = 1.8f;
+#else
 	m_PrefsBrightness = 256;
 	m_PrefsLOD = CRenderer::ms_lodDistScale;
+#endif
 	m_KeyPressedCode = -1;
 	m_bFrontEnd_ReloadObrTxtGxt = false;
 	m_PrefsMP3BoostVolume = 0;
 	m_PrefsShowSubtitles = 0;
 	m_PrefsShowLegends = 1;
-#ifdef ASPECT_RATIO_SCALE
+#ifdef NINTENDO_WII
+	m_PrefsUseWideScreen = AR_16_9;
+#elif defined ASPECT_RATIO_SCALE
 	m_PrefsUseWideScreen = AR_AUTO;
 #else
 	m_PrefsUseWideScreen = 0;
@@ -503,11 +511,16 @@ CMenuManager::CMenuManager()
 	DisplayComboButtonErrMsg = false;
 	m_PrefsDMA = 1;
 	OS_Language = LANG_ENGLISH;
+#ifdef NINTENDO_WII
+	m_ControlMethod = CONTROL_CLASSIC;
+	CCamera::m_bUseMouse3rdPerson = false;
+#else
 	m_ControlMethod = CONTROL_STANDARD;
 #ifdef PC_PLAYER_CONTROLS
 	CCamera::m_bUseMouse3rdPerson = true;
 #else
 	CCamera::m_bUseMouse3rdPerson = false;
+#endif
 #endif
 	m_lastWorking3DAudioProvider = 0;
 	m_nFirstVisibleRowOnList = 0;
@@ -4911,14 +4924,21 @@ CMenuManager::ProcessUserInput(uint8 goDown, uint8 goUp, uint8 optionSelected, u
 				        DMAudio.PlayFrontEndTrack(m_PrefsRadioStation, TRUE);
 					SaveSettings();
 				} else if (m_nCurrScreen == MENUPAGE_DISPLAY_SETTINGS) {
+#ifdef NINTENDO_WII
+					m_PrefsBrightness = 384;
+					m_PrefsLOD = 1.8f;
+#else
 					m_PrefsBrightness = 256;
 					m_PrefsLOD = 1.2f;
+#endif
 #ifdef LEGACY_MENU_OPTIONS
 					m_PrefsVsync = true;
 #endif
 					CRenderer::ms_lodDistScale = m_PrefsLOD;
 					m_PrefsShowSubtitles = false;
-#ifdef ASPECT_RATIO_SCALE
+#ifdef NINTENDO_WII
+					m_PrefsUseWideScreen = AR_16_9;
+#elif defined ASPECT_RATIO_SCALE
 					m_PrefsUseWideScreen = AR_AUTO;
 #else
 					m_PrefsUseWideScreen = false;

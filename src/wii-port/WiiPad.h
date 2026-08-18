@@ -26,10 +26,17 @@ void WiiPadScan(void);
 // game never has to know which one the player picked up.
 void WiiPadCapture(int padID, CControllerState &state);
 
-// The Wiimote pointer, as the mouse the engine already knows how to use.  In
-// game it reports a turn rate as relative motion; in a menu it drives the
-// cursor's absolute position, which it writes straight to the frontend.
+// The Wiimote pointer, as the mouse the engine already knows how to use.  In a
+// menu it drives the cursor's absolute position.  In game it is a rate camera
+// only on a bare Wiimote or in a 1st-person weapon scope; with a nunchuk it
+// writes the 3rd-person crosshair while a gun is being aimed and otherwise
+// reports no motion, so Classic follow-cam stays on the sticks.
 void WiiPadCaptureMouse(CMouseControllerState &state);
+
+// True this frame when the pointer is driving the 3rd-person crosshair (on-foot
+// firearm or drive-by).  Weapon.cpp uses the mouse-cam target vector while this
+// is set, without turning on follow-cam mouse orbit.
+bool WiiPadPointerAimActive(void);
 
 // Drives the rumble motors from the shake the game asked for, and spends down
 // its remaining duration.  No other backend on this platform does either.

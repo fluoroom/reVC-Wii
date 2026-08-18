@@ -152,9 +152,15 @@ void RestoreDefDisplay(int8 action) {
 		CIniFile::LoadIniFile();
 	#endif
 	#ifdef GRAPHICS_MENU_OPTIONS // otherwise Frontend will handle those
+#ifdef NINTENDO_WII
+		FrontEndMenuManager.m_PrefsBrightness = 384;
+		FrontEndMenuManager.m_PrefsLOD = 1.8f;
+		CRenderer::ms_lodDistScale = 1.8f;
+#else
 		FrontEndMenuManager.m_PrefsBrightness = 256;
 		FrontEndMenuManager.m_PrefsLOD = 1.2f;
 		CRenderer::ms_lodDistScale = 1.2f;
+#endif
 		FrontEndMenuManager.m_PrefsShowSubtitles = false;
 		FrontEndMenuManager.m_PrefsShowLegends = true;
 		FrontEndMenuManager.m_PrefsRadarMode = 0;

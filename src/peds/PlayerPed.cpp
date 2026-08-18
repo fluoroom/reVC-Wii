@@ -24,6 +24,10 @@
 #include "PedPlacement.h"
 #include "VarConsole.h"
 #include "SaveBuf.h"
+#ifdef NINTENDO_WII
+#include "Sprite.h"
+#include "WiiPad.h"
+#endif
 
 #define PAD_MOVE_TO_GAME_WORLD_MOVE 60.0f
 
@@ -1154,6 +1158,105 @@ CPlayerPed::FindWeaponLockOnTarget(void)
 	return true;
 }
 
+#ifdef NINTENDO_WII
+bool
+CPlayerPed::FindWeaponLockOnTargetAtScreen(float screenX, float screenY)
+{
+	CEntity *bestEnt = nil;
+	float bestDist2 = 1.0e12f;
+	float weaponRange = CWeaponInfo::GetWeaponInfo(GetWeapon()->m_eWeaponType)->m_fRange;
+	const float maxDist = 0.16f * SCREEN_HEIGHT;
+	const float maxDist2 = maxDist * maxDist;
+
+	for(int slot = CPools::GetPedPool()->GetSize() - 1; slot >= 0; slot--){
+		CPed *pedToCheck = CPools::GetPedPool()->GetSlot(slot);
+		if(pedToCheck == nil || pedToCheck == this)
+			continue;
+		if(pedToCheck->DyingOrDead()
+#ifndef AIMING_VEHICLE_OCCUPANTS
+			|| (pedToCheck->bInVehicle && (!pedToCheck->m_pMyVehicle || !pedToCheck->m_pMyVehicle->IsBike()))
+#endif
+			|| pedToCheck->m_leader == this || pedToCheck->bNeverEverTargetThisPed)
+			continue;
+		if(!OurPedCanSeeThisOne(pedToCheck, true) || !CanIKReachThisTarget(pedToCheck->GetPosition(), GetWeapon(), true))
+			continue;
+		if((pedToCheck->GetPosition() - GetPosition()).Magnitude2D() > weaponRange)
+			continue;
+		if(DoesTargetHaveToBeBroken(pedToCheck->GetPosition(), GetWeapon()))
+			continue;
+
+		CVector worldPos;
+		pedToCheck->m_pedIK.GetComponentPosition(worldPos, PED_MID);
+		RwV3d screen;
+		float w, h;
+		if(!CSprite::CalcScreenCoors(worldPos, &screen, &w, &h, true))
+			continue;
+		float dx = screen.x - screenX;
+		float dy = screen.y - screenY;
+		float dist2 = dx * dx + dy * dy;
+		if(IsThisPedAnAimingPriority(pedToCheck))
+			dist2 *= 0.65f;
+		if(dist2 < bestDist2){
+			bestDist2 = dist2;
+			bestEnt = pedToCheck;
+		}
+	}
+
+	for(int i = 0; i < ARRAY_SIZE(m_nTargettableObjects); i++){
+		CObject *obj = CPools::GetObjectPool()->GetAt(m_nTargettableObjects[i]);
+		if(obj == nil || obj->bHasBeenDamaged)
+			continue;
+		if(!CanIKReachThisTarget(obj->GetPosition(), GetWeapon(), true))
+			continue;
+		if((obj->GetPosition() - GetPosition()).Magnitude2D() > weaponRange)
+			continue;
+		if(DoesTargetHaveToBeBroken(obj->GetPosition(), GetWeapon()))
+			continue;
+
+		RwV3d screen;
+		float w, h;
+		if(!CSprite::CalcScreenCoors(obj->GetPosition(), &screen, &w, &h, true))
+			continue;
+		float dx = screen.x - screenX;
+		float dy = screen.y - screenY;
+		float dist2 = dx * dx + dy * dy;
+		if(dist2 < bestDist2){
+			bestDist2 = dist2;
+			bestEnt = obj;
+		}
+	}
+
+	if(bestEnt == nil || bestDist2 > maxDist2){
+		if(m_pPointGunAt)
+			ClearWeaponTarget();
+		return false;
+	}
+
+	if(m_pPointGunAt != nil && m_pPointGunAt != bestEnt){
+		CVector curPos = m_pPointGunAt->GetPosition();
+		if(m_pPointGunAt->IsPed())
+			((CPed*)m_pPointGunAt)->m_pedIK.GetComponentPosition(curPos, PED_MID);
+		RwV3d curScreen;
+		float w, h;
+		if(CSprite::CalcScreenCoors(curPos, &curScreen, &w, &h, true)){
+			float cdx = curScreen.x - screenX;
+			float cdy = curScreen.y - screenY;
+			float cur2 = cdx * cdx + cdy * cdy;
+			if(cur2 < maxDist2 * 1.35f && bestDist2 > cur2 * 0.5f)
+				return true;
+		}
+	}
+
+	if(bestEnt == m_pPointGunAt)
+		return true;
+
+	SetWeaponLockOnTarget(bestEnt);
+	bDontAllowWeaponChange = true;
+	SetPointGunAt(bestEnt);
+	return true;
+}
+#endif
+
 void
 CPlayerPed::ProcessAnimGroups(void)
 {
@@ -1449,15 +1552,32 @@ CPlayerPed::ProcessPlayerWeapon(CPad *padUsed)
 			}
 
 			if (m_pPointGunAt) {
-				if (padUsed->ShiftTargetLeftJustDown())
-					FindNextWeaponLockOnTarget(m_pPointGunAt, true);
-				if (padUsed->ShiftTargetRightJustDown())
-					FindNextWeaponLockOnTarget(m_pPointGunAt, false);
+#ifdef NINTENDO_WII
+				if (WiiPadPointerAimActive())
+					FindWeaponLockOnTargetAtScreen(
+						TheCamera.m_f3rdPersonCHairMultX * SCREEN_WIDTH,
+						TheCamera.m_f3rdPersonCHairMultY * SCREEN_HEIGHT);
+#endif
+				if (m_pPointGunAt) {
+					if (padUsed->ShiftTargetLeftJustDown())
+						FindNextWeaponLockOnTarget(m_pPointGunAt, true);
+					if (padUsed->ShiftTargetRightJustDown())
+						FindNextWeaponLockOnTarget(m_pPointGunAt, false);
+				}
 			}
-			TheCamera.SetNewPlayerWeaponMode(CCam::MODE_SYPHON, 0, 0);
-			TheCamera.UpdateAimingCoors(m_pPointGunAt->GetPosition());
+			if (m_pPointGunAt) {
+				TheCamera.SetNewPlayerWeaponMode(CCam::MODE_SYPHON, 0, 0);
+				TheCamera.UpdateAimingCoors(m_pPointGunAt->GetPosition());
+			}
 
 		} else if (!CCamera::m_bUseMouse3rdPerson) {
+#ifdef NINTENDO_WII
+			if (WiiPadPointerAimActive()) {
+				FindWeaponLockOnTargetAtScreen(
+					TheCamera.m_f3rdPersonCHairMultX * SCREEN_WIDTH,
+					TheCamera.m_f3rdPersonCHairMultY * SCREEN_HEIGHT);
+			} else
+#endif
 			if (padUsed->TargetJustDown() || TheCamera.m_bJustJumpedOutOf1stPersonBecauseOfTarget)
 				FindWeaponLockOnTarget();
 		}

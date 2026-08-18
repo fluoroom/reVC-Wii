@@ -26,6 +26,8 @@
 #include "WiiLog.h"
 #include "WiiPad.h"
 #include "WiiTrace.h"
+#include "WiiVideo.h"
+#include "Renderer.h"
 
 extern volatile int32 frameCount;
 
@@ -47,6 +49,7 @@ constexpr const char *kInstallDirectories[] = {
 GXRModeObj *s_renderMode;
 void *s_frameBuffers[2];
 char s_installDirectory[128] = "sd:/apps/reVC";
+bool s_wideDisplay = true;
 
 void
 onVerticalRetrace(u32)
@@ -129,6 +132,21 @@ initializeVideo()
 {
 	VIDEO_Init();
 	s_renderMode = VIDEO_GetPreferredMode(nullptr);
+
+	// 640x480 (or PAL 576) is 4:3 in pixel count.  VIDEO_GetPreferredMode leaves
+	// viWidth at 640 with a centred origin, which is analog pillarboxing on a
+	// 720-wide line.  A 16:9 TV then either shows those bars or stretches the
+	// 4:3 image.  Wii SYSCONF is often still 4:3 even on a widescreen set, so
+	// always fill the analog width and render anamorphic 16:9.
+	s_wideDisplay = true;
+	if(s_renderMode != nullptr){
+		const u16 maxWidth =
+			((s_renderMode->viTVMode >> 2) == VI_PAL) ? VI_MAX_WIDTH_PAL :
+			VI_MAX_WIDTH_NTSC;
+		s_renderMode->viWidth = maxWidth;
+		s_renderMode->viXOrigin = 0;
+	}
+
 	for(void *&frameBuffer : s_frameBuffers){
 		frameBuffer = MEM_K0_TO_K1(SYS_AllocateFramebuffer(s_renderMode));
 		if(frameBuffer == nullptr)
@@ -189,6 +207,12 @@ haltBoot(const char *stage)
 }
 
 } // namespace
+
+bool
+WiiVideoIsWide(void)
+{
+	return s_wideDisplay;
+}
 
 // Overrides libogc's weak symbol to make Arena2 the one and only sbrk arena.
 // At its default of 0 the whole heap is what is left of MEM1 once the ELF, the
@@ -445,6 +469,16 @@ main(int argc, char **argv)
 	if(!CGame::InitialiseOnceAfterRW())
 		haltBoot("InitialiseOnceAfterRW");
 	WiiTraceReport("WII game boot: core services initialized\n");
+
+	FrontEndMenuManager.LoadSettings();
+	FrontEndMenuManager.m_PrefsBrightness = 384;
+	FrontEndMenuManager.m_PrefsLOD = 1.8f;
+	CRenderer::ms_lodDistScale = 1.8f;
+	FrontEndMenuManager.m_PrefsUseWideScreen = AR_16_9;
+	WiiTraceReport("WII display: wide=%d vi=%ux%u fb=%ux%u\n",
+		s_wideDisplay ? 1 : 0,
+		s_renderMode->viWidth, s_renderMode->viHeight,
+		s_renderMode->fbWidth, s_renderMode->efbHeight);
 
 	// The game state machine the PC skeleton drives from its message loop.
 	// The movie and PS2 memory card states have no counterpart here, so boot

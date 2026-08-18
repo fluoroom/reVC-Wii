@@ -55,7 +55,20 @@ wii_configure_and_build() {
 	[[ -f "$built" ]] || wii_die "build finished but $built was not produced"
 	mkdir -p "$SD_APP"
 	cp -f "$built" "$BOOT_DOL"
+	if [[ ! -f "$SD_APP/cheats.txt" ]]; then
+		cp -f "$ROOT/gamefiles/cheats.txt" "$SD_APP/cheats.txt"
+	fi
+	if [[ ! -f "$SD_APP/cheats-ingame.txt" ]]; then
+		cp -f "$ROOT/gamefiles/cheats-ingame.txt" "$SD_APP/cheats-ingame.txt"
+	fi
+	printf 'tree %s\n' "$ROOT"
 	printf 'installed %s -> %s\n' "$built" "$BOOT_DOL"
+	stat -c 'dol  %y %s bytes' "$BOOT_DOL"
+	# If this is older than the pad source, Dolphin would still be the previous mapping.
+	local pad="$ROOT/src/wii-port/WiiPad.cpp"
+	if [[ "$BOOT_DOL" -ot "$pad" ]]; then
+		wii_die "boot.dol is older than $pad — the remap did not land in this build"
+	fi
 }
 
 wii_write_dolphin_config() {
@@ -139,6 +152,12 @@ wii_inject_boot_dol() {
 	command -v mcopy >/dev/null || return 0
 	export MTOOLS_SKIP_CHECK=1
 	mcopy -i "$SD_IMAGE" -o "$BOOT_DOL" ::apps/reVC/boot.dol
+	if [[ -f "$SD_APP/cheats.txt" ]]; then
+		mcopy -i "$SD_IMAGE" -o "$SD_APP/cheats.txt" ::apps/reVC/cheats.txt
+	fi
+	if [[ -f "$SD_APP/cheats-ingame.txt" ]]; then
+		mcopy -i "$SD_IMAGE" -o "$SD_APP/cheats-ingame.txt" ::apps/reVC/cheats-ingame.txt
+	fi
 }
 
 wii_extract_debug_log() {

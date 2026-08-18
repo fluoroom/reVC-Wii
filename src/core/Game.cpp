@@ -2,7 +2,8 @@
 #include "platform.h"
 
 #ifdef NINTENDO_WII
-#include "wii-port/WiiLog.h"
+#include "WiiLog.h"
+#include "WiiCheats.h"
 #endif
 
 #include "Game.h"
@@ -983,6 +984,9 @@ void CGame::Process(void)
 		wiiLog("WII frame: game process begin frame=%u\n", wiiProcessCount);
 #endif
 	CPad::UpdatePads();
+#ifdef NINTENDO_WII
+	WiiCheatsProcess();
+#endif
 #ifdef USE_CUSTOM_ALLOCATOR
 	ProcessTidyUpMemory();
 #endif

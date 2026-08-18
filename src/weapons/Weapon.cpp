@@ -36,6 +36,9 @@
 #include "Sprite.h"
 #include "Pickups.h"
 #include "SaveBuf.h"
+#ifdef NINTENDO_WII
+#include "WiiPad.h"
+#endif
 
 float fReloadAnimSampleFraction[5] = {  0.5f,  0.7f,  0.75f,  0.75f,  0.7f };
 float fSeaSparrowAimingAngle = 10.0f;
@@ -964,7 +967,11 @@ CWeapon::FireInstantHit(CEntity *shooter, CVector *fireSource)
 		ahead.Normalise();
 #endif
 	}
-	else if ( shooter == FindPlayerPed() && TheCamera.Cams[0].Using3rdPersonMouseCam()  )
+	else if ( shooter == FindPlayerPed() && (TheCamera.Cams[0].Using3rdPersonMouseCam()
+#ifdef NINTENDO_WII
+		|| WiiPadPointerAimActive()
+#endif
+		) )
 	{
 #ifdef FREE_CAM
 		if (CCamera::bFreeCam) {
@@ -1733,7 +1740,11 @@ CWeapon::FireShotgun(CEntity *shooter, CVector *fireSource)
 		CColPoint point;
 		CEntity *victim;
 
-		if ( shooter == FindPlayerPed() && TheCamera.Cams[0].Using3rdPersonMouseCam() )
+		if ( shooter == FindPlayerPed() && (TheCamera.Cams[0].Using3rdPersonMouseCam()
+#ifdef NINTENDO_WII
+			|| WiiPadPointerAimActive()
+#endif
+			) )
 		{
 			CVector Left;
 #ifdef FREE_CAM
@@ -2187,7 +2198,11 @@ CWeapon::FireAreaEffect(CEntity *shooter, CVector *fireSource)
 	CVector target;
 	CVector dir;
 
-	if ( shooter == FindPlayerPed() && TheCamera.Cams[0].Using3rdPersonMouseCam() )
+	if ( shooter == FindPlayerPed() && (TheCamera.Cams[0].Using3rdPersonMouseCam()
+#ifdef NINTENDO_WII
+		|| WiiPadPointerAimActive()
+#endif
+		) )
 	{
 #ifdef FREE_CAM
 		if (CCamera::bFreeCam) {

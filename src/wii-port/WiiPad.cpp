@@ -5,9 +5,12 @@
 #include <wiiuse/wpad.h>
 
 #include "common.h"
+#include "Camera.h"
 #include "ControllerConfig.h"
 #include "Frontend.h"
 #include "Pad.h"
+#include "PlayerPed.h"
+#include "PlayerInfo.h"
 #include "Timer.h"
 #include "WiiPad.h"
 #include "WiiTrace.h"
@@ -58,20 +61,26 @@ constexpr float kMaximumDeadzone = 0.9f;
 
 constexpr float kDegreesToRadians = 3.14159265358979323846f/180.0f;
 
-// --- the pointer as a camera ------------------------------------------------
-// The hard part of a pointer on this engine: IR is ABSOLUTE and BOUNDED, it says
-// where on the screen the player is aiming, while the camera is RELATIVE and
-// UNBOUNDED, it wants how far to turn and can turn forever.  Differencing
-// successive pointer positions is the obvious translation and it is wrong in a
-// specific way: the total camera travel available becomes one screen width, so
-// aiming into a corner and holding swings the view until the pointer clamps and
-// then stops.  There is no way to keep turning without sweeping back and forth.
+// --- the pointer -----------------------------------------------------------
+// IR is ABSOLUTE and BOUNDED: it says where on the screen the player is aiming.
+// That is what a menu cursor wants, and what a 3rd-person gun crosshair wants.
+// The follow camera is RELATIVE and UNBOUNDED, so using the pointer as a rate
+// camera (offset from centre = turn speed) is reserved for a bare Wiimote --
+// there is no nunchuk stick to look with -- and for 1st-person weapon scopes.
+// With a nunchuk attached the follow camera stays on Z+stick; the pointer only
+// writes CHair while a firearm is being aimed or during drive-by, and otherwise
+// reports no mouse motion at all.
 //
-// So in game the offset from the centre of the screen is read as a RATE instead:
-// direction and speed, not distance.  Hold the Wiimote up and right and the
-// camera keeps going up and right, faster the further out it points.  In a MENU
-// the pointer stays absolute, because there it really is a cursor and aiming at
-// an option has to put the cursor on that option.
+// Differencing successive pointer positions for a rate camera is the obvious
+// translation and it is wrong in a specific way: the total camera travel
+// available becomes one screen width, so aiming into a corner and holding swings
+// the view until the pointer clamps and then stops.  There is no way to keep
+// turning without sweeping back and forth.  So when the pointer IS a camera,
+// the offset from the centre of the screen is read as a RATE instead: direction
+// and speed, not distance.  Hold the Wiimote up and right and the camera keeps
+// going up and right, faster the further out it points.  In a MENU the pointer
+// stays absolute, because there it really is a cursor and aiming at an option
+// has to put the cursor on that option.
 //
 // Neutral is the centre of the screen, always.  Latching it to wherever the
 // player happened to be aiming sounds friendlier and is not: close a menu with
@@ -152,6 +161,26 @@ u64 s_pointerLastTime;
 float s_heldRateX;
 float s_heldRateY;
 float s_heldSeconds;
+bool s_pointerAimActive;
+
+// Resting remote is about 1g.  The hardware clips near +/-3g, so a 2.6g peak
+// gate never fires on a normal jab: the extra acceleration is only about one g
+// on top of gravity, and it lasts a couple of frames.  A punch is a JERK --
+// |g| jumping -- not a sustained high reading.  Peak still has to leave rest so
+// a slow tilt cannot count.
+constexpr float kPunchPeakG = 1.65f;
+constexpr float kPunchJerkG = 0.40f;
+constexpr float kPunchOffG = 1.30f;
+constexpr float kPunchHoldSeconds = 0.22f;
+constexpr float kPunchCooldownSeconds = 0.28f;
+
+float s_punchHold;
+float s_punchCooldown;
+float s_punchLastMag = 1.0f;
+bool s_punchHaveLastMag;
+bool s_punchArmed = true;
+uword s_punchLastRawX, s_punchLastRawY, s_punchLastRawZ;
+bool s_punchHaveLastRaw;
 
 int16
 toAxis(float value, float sensitivity)
@@ -332,6 +361,87 @@ addStick(float x, float y, float deadzone, float &outX, float &outY)
 	outY += y;
 }
 
+// Circle is GetWeapon() in setup 1, which is both gunfire and melee.  Guns stay
+// on B.  Melee also accepts a punch: the accelerometer is already in the IR
+// report, so this is a threshold on |g|, not a new sensor.  Circle is held for
+// a couple of frames because knives and bats attack on GetWeapon held, while
+// fists only need WeaponJustDown.
+float
+gforceMagnitude(const gforce_t &g)
+{
+	if(!std::isfinite(g.x) || !std::isfinite(g.y) || !std::isfinite(g.z))
+		return 0.0f;
+	return std::sqrt(g.x*g.x + g.y*g.y + g.z*g.z);
+}
+
+bool
+wiimotePunchLatched(const WPADData &data)
+{
+	if(s_punchHold > 0.0f){
+		s_punchHold -= s_pointerDt;
+		if(s_punchHold < 0.0f)
+			s_punchHold = 0.0f;
+	}
+	if(s_punchCooldown > 0.0f){
+		s_punchCooldown -= s_pointerDt;
+		if(s_punchCooldown < 0.0f)
+			s_punchCooldown = 0.0f;
+	}
+
+	if(data.err != WPAD_ERR_NONE)
+		return s_punchHold > 0.0f;
+
+	const bool haveAccel = (data.data_present & WPAD_DATA_ACCEL) != 0;
+	float mag = haveAccel ? gforceMagnitude(data.gforce) : 0.0f;
+	float jerk = 0.0f;
+	if(s_punchHaveLastMag && mag > 0.0f)
+		jerk = mag > s_punchLastMag ? mag - s_punchLastMag : s_punchLastMag - mag;
+	if(mag > 0.0f){
+		s_punchLastMag = mag;
+		s_punchHaveLastMag = true;
+	}
+
+	// Calibration of 0 makes gforce Inf and the peak test never fires.  Fall
+	// back to the raw 10-bit counts (~100 per g) so a jab still registers.
+	if(haveAccel && mag <= 0.0f && s_punchHaveLastRaw){
+		const float dx = (float)data.accel.x - (float)s_punchLastRawX;
+		const float dy = (float)data.accel.y - (float)s_punchLastRawY;
+		const float dz = (float)data.accel.z - (float)s_punchLastRawZ;
+		jerk = std::sqrt(dx*dx + dy*dy + dz*dz) / 100.0f;
+		mag = 1.0f + jerk;
+	}
+	if(haveAccel){
+		s_punchLastRawX = data.accel.x;
+		s_punchLastRawY = data.accel.y;
+		s_punchLastRawZ = data.accel.z;
+		s_punchHaveLastRaw = true;
+	}
+
+	if(mag > 0.0f && mag < kPunchOffG)
+		s_punchArmed = true;
+
+	if(s_punchArmed && s_punchCooldown <= 0.0f && mag >= kPunchPeakG &&
+		jerk >= kPunchJerkG){
+		s_punchArmed = false;
+		s_punchHold = kPunchHoldSeconds;
+		s_punchCooldown = kPunchCooldownSeconds;
+		WiiTraceReport("WII pad: punch mag=%.2f jerk=%.2f\n", mag, jerk);
+	}
+
+	return s_punchHold > 0.0f;
+}
+
+void
+applyMeleePunch(const WPADData &data, CControllerState &state)
+{
+	CPlayerPed *ped = FindPlayerPed();
+	if(ped == nil || ped->GetWeapon() == nil || !ped->GetWeapon()->IsTypeMelee())
+		return;
+
+	if(wiimotePunchLatched(data))
+		setButton(state.Circle, true);
+}
+
 // PAD_ScanPads() returns the mask of channels whose status came back without
 // error, so it is a real connected test.  Guessing presence from stick
 // deflection instead lets an idle pad resting a couple of counts off centre
@@ -420,46 +530,122 @@ captureClassic(const WPADData &data, CControllerState &state,
 
 // The Wiimote itself, and the Nunchuk when one is attached.  Only the forward
 // grip is supported -- the remote pointed at the screen, D-pad under the thumb,
-// B trigger under the index finger -- because that is the grip the pointer needs
-// and the pointer is what stands in for the right stick.  Held sideways the
-// D-pad would be rotated a quarter turn and the pointer unusable, which is a
-// different mapping rather than the same one with a caveat.
+// B trigger under the index finger -- because that is the grip the pointer needs.
+// Held sideways the D-pad would be rotated a quarter turn and the pointer
+// unusable, which is a different mapping rather than the same one with a caveat.
+//
+// GTA still reads PS2 buttons.  Everyday actions sit on A/B/C/Z/stick/D-pad;
+// 1 and 2 are at the speaker end and only get rare ones.  Z is look, not a
+// shoulder: binding it to R1 would tap target/handbrake every time the player
+// glanced.  The nunchuk stick already walks and steers, so DPad* is left unset
+// -- writing both would strafe while cycling weapons.
 void
 captureWiimote(const WPADData &data, u32 expansion, CControllerState &state,
 	StickAccumulator &sticks, const StickSettings &settings)
 {
 	const u32 buttons = data.btns_h;
-	setButton(state.Circle, buttons & WPAD_BUTTON_B);
+	const bool menu = FrontEndMenuManager.m_bMenuActive;
+	const bool nunchukAttached = expansion == WPAD_EXP_NUNCHUK;
+	const bool inVehicle = !menu && FindPlayerVehicle() != nil;
+	const bool lookingOut = (buttons & (WPAD_BUTTON_LEFT | WPAD_BUTTON_RIGHT)) != 0;
+	const bool bHeld = (buttons & WPAD_BUTTON_B) != 0;
+
+	// Pause menus can still have FindPlayerVehicle() set.  Confirm/back stay on
+	// A/B regardless of whether the player opened the menu from a car.
 	setButton(state.Cross, buttons & WPAD_BUTTON_A);
-	setButton(state.Square, buttons & WPAD_BUTTON_1);
-	setButton(state.Triangle, buttons & WPAD_BUTTON_2);
 	setButton(state.Start, buttons & WPAD_BUTTON_PLUS);
-	setButton(state.Select, buttons & WPAD_BUTTON_MINUS);
 
-	// CPad::GetPedWalkUpDown and GetSteeringUpDown weigh the D-pad against the
-	// left stick at 255/2, so on a bare Wiimote the D-pad alone walks and drives
-	// without any synthetic stick behind it.
-	setButton(state.DPadUp, buttons & WPAD_BUTTON_UP);
-	setButton(state.DPadDown, buttons & WPAD_BUTTON_DOWN);
-	setButton(state.DPadLeft, buttons & WPAD_BUTTON_LEFT);
-	setButton(state.DPadRight, buttons & WPAD_BUTTON_RIGHT);
+	if(!nunchukAttached){
+		// Bare remote: D-pad walks and steers, A/B stay Cross/Circle, IR is the
+		// only camera.  1/2/Minus keep the old face-button layout because there
+		// is no nunchuk C/Z to put jump, handbrake, and look on.
+		setButton(state.Circle, bHeld);
+		setButton(state.Square, buttons & WPAD_BUTTON_1);
+		setButton(state.Triangle, buttons & WPAD_BUTTON_2);
+		setButton(state.Select, buttons & WPAD_BUTTON_MINUS);
 
-	if(expansion != WPAD_EXP_NUNCHUK)
+		// CPad::GetPedWalkUpDown and GetSteeringUpDown weigh the D-pad against
+		// the left stick at 255/2, so the D-pad alone walks and drives without
+		// any synthetic stick behind it.
+		setButton(state.DPadUp, buttons & WPAD_BUTTON_UP);
+		setButton(state.DPadDown, buttons & WPAD_BUTTON_DOWN);
+		setButton(state.DPadLeft, buttons & WPAD_BUTTON_LEFT);
+		setButton(state.DPadRight, buttons & WPAD_BUTTON_RIGHT);
+
+		// Classic vehicle look reads RightStick, not the mouse.  FOLLOWPED on
+		// foot already prefers mouse deltas when they are non-zero, so feeding
+		// the same IR rate into the stick does not double the on-foot turn.
+		if(!CCamera::m_bUseMouse3rdPerson &&
+			(s_heldRateX != 0.0f || s_heldRateY != 0.0f)){
+			sticks.rightX += s_heldRateX / kPointerRatePerSec;
+			sticks.rightY += -s_heldRateY /
+				(kPointerRatePerSec * kPointerPitchScale);
+		}
+		if(!menu && !inVehicle)
+			applyMeleePunch(data, state);
 		return;
+	}
 
 	// libogc reports the expansion's buttons twice: merged into the Wiimote mask
 	// (WPAD_NUNCHUK_BUTTON_* are the low bits shifted up by 16) and in the
 	// expansion struct's own byte.  Either is normally enough; taking both costs
 	// one OR and removes a whole class of "works on my Wiimote" difference.
 	const nunchuk_t &nunchuk = data.exp.nunchuk;
-	setButton(state.RightShoulder1, (buttons & WPAD_NUNCHUK_BUTTON_Z) ||
-		(nunchuk.btns_held & NUNCHUK_BUTTON_Z));
-	setButton(state.LeftShoulder1, (buttons & WPAD_NUNCHUK_BUTTON_C) ||
-		(nunchuk.btns_held & NUNCHUK_BUTTON_C));
+	const bool cHeld = (buttons & WPAD_NUNCHUK_BUTTON_C) != 0 ||
+		(nunchuk.btns_held & NUNCHUK_BUTTON_C) != 0;
+	const bool zHeld = (buttons & WPAD_NUNCHUK_BUTTON_Z) != 0 ||
+		(nunchuk.btns_held & NUNCHUK_BUTTON_Z) != 0;
+
+	if(menu){
+		setButton(state.Circle, bHeld);
+	}else if(inVehicle){
+		// B cannot be brake and fire at once.  D-pad left/right is the lean-out
+		// that starts drive-by, so B is Circle (shoot) while it is held and
+		// Square (brake) otherwise.  1 fires a mounted gun only when not leaning
+		// out, because Circle is already spoken for then.
+		if(lookingOut)
+			setButton(state.Circle, bHeld);
+		else{
+			setButton(state.Square, bHeld);
+			setButton(state.Circle, buttons & WPAD_BUTTON_1);
+		}
+		setButton(state.Triangle, buttons & WPAD_BUTTON_2);
+		setButton(state.Select, buttons & WPAD_BUTTON_MINUS);
+		setButton(state.RightShoulder1, cHeld);
+		if(buttons & WPAD_BUTTON_LEFT)
+			setButton(state.LeftShoulder2, true);
+		if(buttons & WPAD_BUTTON_RIGHT)
+			setButton(state.RightShoulder2, true);
+		if(buttons & WPAD_BUTTON_DOWN){
+			setButton(state.LeftShoulder2, true);
+			setButton(state.RightShoulder2, true);
+		}
+		if(buttons & WPAD_BUTTON_UP)
+			setButton(state.LeftShoulder1, true);
+	}else{
+		setButton(state.Circle, bHeld);
+		setButton(state.Square, cHeld);
+		setButton(state.RightShoulder1, buttons & WPAD_BUTTON_MINUS);
+		setButton(state.Triangle, buttons & WPAD_BUTTON_DOWN);
+		setButton(state.LeftShock, buttons & WPAD_BUTTON_1);
+		if(buttons & WPAD_BUTTON_LEFT)
+			setButton(state.LeftShoulder2, true);
+		if(buttons & WPAD_BUTTON_RIGHT)
+			setButton(state.RightShoulder2, true);
+		if(buttons & WPAD_BUTTON_UP)
+			setButton(state.LeftShoulder1, true);
+	}
+
+	if(!menu && !inVehicle)
+		applyMeleePunch(data, state);
 
 	float x, y;
 	readJoystick(nunchuk.js, x, y);
-	addStick(x, -y, settings.leftDeadzone, sticks.leftX, sticks.leftY);
+	y = -y;
+	if(!menu && zHeld)
+		addStick(x, y, settings.rightDeadzone, sticks.rightX, sticks.rightY);
+	else
+		addStick(x, y, settings.leftDeadzone, sticks.leftX, sticks.leftY);
 }
 
 // Offset from the centre of the screen turned into a turn rate, in the units
@@ -517,6 +703,78 @@ stopPointerHold(void)
 	s_heldRateX = 0.0f;
 	s_heldRateY = 0.0f;
 	s_heldSeconds = kPointerHoldSeconds;
+}
+
+void
+writeIrToCHair(const WPADData &data)
+{
+	const float width = (float)RsGlobal.maximumWidth;
+	const float height = (float)RsGlobal.maximumHeight;
+	if(width <= 0.0f || height <= 0.0f)
+		return;
+
+	float x = data.ir.x / width;
+	float y = data.ir.y / height;
+	if(x < 0.0f)
+		x = 0.0f;
+	else if(x > 1.0f)
+		x = 1.0f;
+	if(y < 0.0f)
+		y = 0.0f;
+	else if(y > 1.0f)
+		y = 1.0f;
+
+	TheCamera.m_f3rdPersonCHairMultX = x;
+	TheCamera.m_f3rdPersonCHairMultY = y;
+}
+
+bool
+pointerWantsGunAim(const WPADData &data)
+{
+	CPlayerPed *ped = FindPlayerPed();
+	if(ped == nil)
+		return false;
+
+	if(FindPlayerVehicle() != nil)
+		return (data.btns_h & WPAD_BUTTON_B) != 0 &&
+			(data.btns_h & (WPAD_BUTTON_LEFT | WPAD_BUTTON_RIGHT)) != 0;
+
+	CWeapon *weapon = ped->GetWeapon();
+	if(weapon == nil || weapon->IsTypeMelee())
+		return false;
+
+	// B hip-fires at the pointer.  Minus is Classic lock-on; the pointer has to
+	// run then too or the lock stays on whoever FindWeaponLockOnTarget picked.
+	return (data.btns_h & (WPAD_BUTTON_B | WPAD_BUTTON_MINUS)) != 0;
+}
+
+void
+applyIrRateCamera(const WPADData &data, CMouseControllerState &state, bool allowHold)
+{
+	if(data.ir.valid){
+		float rateX, rateY;
+		if(irPointerRate(data, rateX, rateY)){
+			s_heldRateX = rateX;
+			s_heldRateY = rateY;
+			s_heldSeconds = 0.0f;
+		}else{
+			stopPointerHold();
+		}
+	}else if(allowHold){
+		s_heldSeconds += s_pointerDt;
+		if(s_heldSeconds >= kPointerHoldSeconds)
+			stopPointerHold();
+	}else{
+		stopPointerHold();
+	}
+
+	if(s_heldRateX == 0.0f && s_heldRateY == 0.0f)
+		return;
+
+	const float deltaX = s_heldRateX*s_pointerDt;
+	const float deltaY = s_heldRateY*s_pointerDt;
+	state.x = MousePointerStateHelper.bInvertHorizontally ? -deltaX : deltaX;
+	state.y = MousePointerStateHelper.bInvertVertically ? -deltaY : deltaY;
 }
 
 } // namespace
@@ -600,6 +858,7 @@ WiiPadCaptureMouse(CMouseControllerState &state)
 	state.Clear();
 	state.x = 0.0f;
 	state.y = 0.0f;
+	s_pointerAimActive = false;
 
 	WPADData *data = WPAD_Data(WPAD_CHAN_0);
 	if(data == nullptr){
@@ -608,6 +867,8 @@ WiiPadCaptureMouse(CMouseControllerState &state)
 	}
 
 	const bool tracked = data->ir.valid != 0;
+	const u32 expansion = probeExpansion(WPAD_CHAN_0, *data);
+	const bool nunchuk = expansion == WPAD_EXP_NUNCHUK;
 
 	if(FrontEndMenuManager.m_bMenuActive){
 		// A cursor, absolutely: aiming at an option has to put the cursor on that
@@ -631,36 +892,34 @@ WiiPadCaptureMouse(CMouseControllerState &state)
 		return;
 	}
 
-	if(tracked){
-		float rateX, rateY;
-		if(irPointerRate(*data, rateX, rateY)){
-			s_heldRateX = rateX;
-			s_heldRateY = rateY;
-			s_heldSeconds = 0.0f;
-		}else{
-			// Aimed near the middle on purpose, which is a request to STOP rather
-			// than a tracking dropout.  Nothing to hold.
-			stopPointerHold();
-		}
-	}else{
-		// Aimed past the edge of the sensor's field while still turning.  Keep
-		// going the same way until the hold runs out.
-		s_heldSeconds += s_pointerDt;
-		if(s_heldSeconds >= kPointerHoldSeconds)
-			stopPointerHold();
+	const bool scopeLook = TheCamera.Using1stPersonWeaponMode();
+
+	if(nunchuk && !scopeLook && pointerWantsGunAim(*data)){
+		// Absolute screen aim.  Dropouts freeze the last CHair rather than
+		// replaying a turn rate -- that hold is what made the follow camera
+		// spin when the remote left the sensor bar.
+		s_pointerAimActive = true;
+		if(tracked)
+			writeIrToCHair(*data);
+		stopPointerHold();
+		return;
 	}
 
-	if(s_heldRateX == 0.0f && s_heldRateY == 0.0f)
+	if(nunchuk && !scopeLook){
+		stopPointerHold();
 		return;
+	}
 
-	// Cam.cpp only reaches for the mouse when one of these is non-zero and
-	// otherwise falls back to CPad::LookAroundLeftRight, so the dead zone above
-	// is also what hands the camera back to the sticks.  The inversion flags are
-	// the frontend's, applied the same way the DirectInput path applies them.
-	const float deltaX = s_heldRateX*s_pointerDt;
-	const float deltaY = s_heldRateY*s_pointerDt;
-	state.x = MousePointerStateHelper.bInvertHorizontally ? -deltaX : deltaX;
-	state.y = MousePointerStateHelper.bInvertVertically ? -deltaY : deltaY;
+	// Bare Wiimote (the pointer is the only camera) or a 1st-person weapon
+	// scope.  Hold-replay is allowed here because the player is still turning,
+	// not aiming a 3rd-person crosshair.
+	applyIrRateCamera(*data, state, true);
+}
+
+bool
+WiiPadPointerAimActive(void)
+{
+	return s_pointerAimActive;
 }
 
 void

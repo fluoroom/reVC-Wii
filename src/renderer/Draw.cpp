@@ -4,6 +4,9 @@
 #include "Frontend.h"
 #include "Camera.h"
 #include "CutsceneMgr.h"
+#ifdef NINTENDO_WII
+#include "WiiVideo.h"
+#endif
 
 float CDraw::ms_fAspectRatio = DEFAULT_ASPECT_RATIO;
 #ifdef ASPECT_RATIO_SCALE
@@ -36,7 +39,13 @@ FindAspectRatio(void)
 {
 	switch (FrontEndMenuManager.m_PrefsUseWideScreen) {
 	case AR_AUTO:
+#ifdef NINTENDO_WII
+		// fbWidth/efbHeight is 640x480 even on a 16:9 TV.  Using that ratio here
+		// keeps 4:3 FOV, which the VI then squashes into pillarbox or stretch.
+		return WiiVideoIsWide() ? 16.0f / 9.0f : 4.0f / 3.0f;
+#else
 		return SCREEN_WIDTH / SCREEN_HEIGHT;
+#endif
 	default:
 	case AR_4_3:
 		return 4.0f / 3.0f;

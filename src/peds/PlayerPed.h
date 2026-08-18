@@ -91,6 +91,9 @@ public:
 	void EvaluateTarget(CEntity*, CEntity**, float*, float, float, bool);
 	bool FindNextWeaponLockOnTarget(CEntity*, bool);
 	bool FindWeaponLockOnTarget(void);
+#ifdef NINTENDO_WII
+	bool FindWeaponLockOnTargetAtScreen(float screenX, float screenY);
+#endif
 	void ProcessAnimGroups(void);
 	void ProcessPlayerWeapon(CPad*);
 	void PlayerControlZelda(CPad*);

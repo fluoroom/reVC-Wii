@@ -3,6 +3,52 @@
 [![Build Status](https://img.shields.io/endpoint.svg?url=https%3A%2F%2Factions-badge.atrox.dev%2Fmrxenginner%2FreVC%2Fbadge%3Fref%3Dmiami&style=flat)](https://actions-badge.atrox.dev/mrxenginner/reVC/goto?ref=miami)
 <a href="https://discord.gg/RFNbjsUMGg"><img src="https://img.shields.io/badge/discord-join-7289DA.svg?logo=discord&longCache=true&style=flat" /></a>
 
+## This fork
+
+Playable Wii changes on top of [OptiJuegos/reVC-Wii](https://github.com/OptiJuegos/reVC-Wii): Wiimote+Nunchuk controls, IR gun aim, PC cheat files, and 16:9 output for NTSC 480p / PAL 576p widescreen TVs.
+
+Copy PC Vice City data into `sd/apps/reVC/`. Dolphin: `./scripts/wii-run` (prints `this tree:` so you know which clone you launched). Real Wii: `./scripts/wii-release`, then copy `sd/apps/reVC/` to a FAT32 SD card as `apps/reVC/` (include `boot.dol`, `cheats.txt`, and `cheats-ingame.txt`).
+
+### Wiimote + Nunchuk
+
+Default control method is Classic. The follow camera is Z + nunchuk stick, not the pointer. HOME quits (unsaved progress is discarded). Plus pauses.
+
+| Input | On foot | In car |
+| --- | --- | --- |
+| Nunchuk stick | Move | Steer |
+| Z + stick | Look | Look |
+| A | Sprint | Gas |
+| B | Fire / punch | Brake, or fire while leaning out |
+| C | Jump | Handbrake |
+| Minus | Lock-on aim | Change camera |
+| D-pad L / R | Cycle weapons | Lean out (drive-by) |
+| D-pad down | Enter | Look behind |
+| D-pad up | L1 (radio / recenter) | L1 |
+| 1 | Duck | Mounted gun (when not leaning out) |
+| 2 | — | Exit |
+| 1 + 2 | Apply `cheats-ingame.txt` | same (also from pause) |
+
+Menus: A confirms, B goes back, even if you paused from a vehicle. Swing the remote to punch when a melee weapon is equipped; B still punches too.
+
+**Pointer** is only for guns. Point while holding Minus (lock-on) or B (hip-fire) and the lock/crosshair follows whoever is under the IR. Lean out with D-pad L/R and hold B to drive-by-aim the same way. Sniper / rocket first-person uses the pointer as a rate look. It does not orbit the follow camera or steer.
+
+Bare Wiimote (no nunchuk): D-pad walks and steers, A/B are Cross/Circle, IR is the only camera.
+
+GameCube and Classic Controller mappings are unchanged.
+
+### Cheats
+
+PC Vice City words, one per line, `#` comments ignored. Files sit next to `boot.dol`:
+
+- `apps/reVC/cheats.txt` — once, when Tommy exists (new game or load)
+- `apps/reVC/cheats-ingame.txt` — each time you press Wiimote **1+2** (in-game or pause)
+
+Templates are in `gamefiles/`. Example words: `thugstools`, `aspirine`, `panzer`, `leavemealone`.
+
+### Display
+
+On Wii, brightness and draw distance default to max, and the game FOV is 16:9. Analog output fills the 720-wide NTSC/PAL line (no 4:3 pillarbox). SYSCONF 4:3 is ignored because many widescreen TVs still have the Wii set to 4:3. Restore defaults in the display menu uses the same maxima.
+
 ## GTA VICE CITY WII port
 
 THANKS GARYODERNICHTS FOR YOUR WIIU VICE CITY PORT (every endian change from him is STOLEN in this port!!)
