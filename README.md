@@ -7,6 +7,8 @@
 
 Playable Wii changes on top of [OptiJuegos/reVC-Wii](https://github.com/OptiJuegos/reVC-Wii): Wiimote+Nunchuk controls, IR gun aim, PC cheat files, and 16:9 output for NTSC 480p / PAL 576p widescreen TVs.
 
+Homebrew Channel PNG banner and meta.xml
+
 Copy PC Vice City data into `sd/apps/reVC/`. Dolphin: `./scripts/wii-run` (prints `this tree:` so you know which clone you launched). Real Wii: `./scripts/wii-release`, then copy `sd/apps/reVC/` to a FAT32 SD card as `apps/reVC/` (include `boot.dol`, `cheats.txt`, and `cheats-ingame.txt`).
 
 ### Wiimote + Nunchuk

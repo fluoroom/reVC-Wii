@@ -8,7 +8,9 @@
 
 #include <fat.h>
 #include <gccore.h>
+#include <ogc/console.h>
 #include <ogc/lwp_watchdog.h>
+#include <ogc/usbstorage.h>
 #include <wiiuse/wpad.h>
 
 #include "common.h"
@@ -43,9 +45,11 @@ namespace
 constexpr unsigned int kFifoSize = 256 * 1024;
 constexpr const char *kInstallDirectories[] = {
 	"sd:/apps/reVC", "usb:/apps/reVC", "usb2:/apps/reVC",
-	"usb3:/apps/reVC", "usb4:/apps/reVC"
+	"usb3:/apps/reVC", "usb4:/apps/reVC",
+	"sd:/reVC", "usb:/reVC"
 };
 
+GXRModeObj s_rmodeObj;
 GXRModeObj *s_renderMode;
 void *s_frameBuffers[2];
 char s_installDirectory[128] = "sd:/apps/reVC";
@@ -109,6 +113,38 @@ tryInstallDirectory(const char *directory)
 }
 
 bool
+dataExists(const char *directory)
+{
+	char path[192];
+	std::snprintf(path, sizeof(path), "%s/DATA/GTA_VC.DAT", directory);
+	if(fileExists(path))
+		return true;
+	std::snprintf(path, sizeof(path), "%s/data/gta_vc.dat", directory);
+	return fileExists(path);
+}
+
+// USB HDDs miss the first probe while they spin up.  HBC has the same timeout,
+// which is why a 1.5G apps/reVC on USB can be invisible there while USB Loader
+// GX (already talking to the drive) still lists it.  Retry usb: even if SD
+// already mounted, so a small HBC stub on SD can still find the data on USB.
+bool
+mountStorage(void)
+{
+	const bool mounted = fatInitDefault();
+
+	for(int tryIndex = 0; tryIndex < 20; tryIndex++){
+		for(const char *directory : kInstallDirectories)
+			if(dataExists(directory))
+				return true;
+		usleep(250000);
+		fatUnmount("usb");
+		fatMountSimple("usb", &__io_usbstorage);
+	}
+
+	return mounted;
+}
+
+bool
 selectInstallDirectory(const char *launchDirectory)
 {
 	// Where the ELF was launched from comes first.  The data sits beside it for
@@ -131,20 +167,33 @@ bool
 initializeVideo()
 {
 	VIDEO_Init();
-	s_renderMode = VIDEO_GetPreferredMode(nullptr);
+	GXRModeObj *preferred = VIDEO_GetPreferredMode(nullptr);
+	if(preferred == nullptr)
+		return false;
+	// Copy rather than mutate the libogc global VIDEO_GetPreferredMode returns.
+	s_rmodeObj = *preferred;
+	s_renderMode = &s_rmodeObj;
 
-	// 640x480 (or PAL 576) is 4:3 in pixel count.  VIDEO_GetPreferredMode leaves
-	// viWidth at 640 with a centred origin, which is analog pillarboxing on a
-	// 720-wide line.  A 16:9 TV then either shows those bars or stretches the
-	// 4:3 image.  Wii SYSCONF is often still 4:3 even on a widescreen set, so
-	// always fill the analog width and render anamorphic 16:9.
+	// 640x480 (or PAL 576) is 4:3 in pixel count.  Preferred mode leaves viWidth
+	// at 640 centred in the 720-wide analog line, which is the pillarbox.  Fill
+	// almost all of that line and render anamorphic 16:9.
+	//
+	// 720 with origin 0 is not safe: SYSCONF screen-position is added on top, the
+	// encoder region then exceeds 720, and VIDEO_WaitVSync never returns on a
+	// real Wii.  Dolphin still draws.  704 leaves 16px of slop; commercial 16:9
+	// titles sit around 670–704.
 	s_wideDisplay = true;
-	if(s_renderMode != nullptr){
+	{
 		const u16 maxWidth =
 			((s_renderMode->viTVMode >> 2) == VI_PAL) ? VI_MAX_WIDTH_PAL :
 			VI_MAX_WIDTH_NTSC;
-		s_renderMode->viWidth = maxWidth;
-		s_renderMode->viXOrigin = 0;
+		u16 viWidth = 704;
+		if(viWidth < s_renderMode->fbWidth)
+			viWidth = s_renderMode->fbWidth;
+		if(viWidth > maxWidth)
+			viWidth = maxWidth;
+		s_renderMode->viWidth = viWidth;
+		s_renderMode->viXOrigin = (u16)((maxWidth - viWidth) / 2);
 	}
 
 	for(void *&frameBuffer : s_frameBuffers){
@@ -202,6 +251,17 @@ haltBoot(const char *stage)
 	// the log may not have been started yet at this point in the boot, so the
 	// reason for the halt is written out here or not at all.
 	WiiTraceCloseLog();
+	if(s_frameBuffers[0] != nullptr && s_renderMode != nullptr){
+		CON_Init(s_frameBuffers[0], 20, 20,
+			s_renderMode->fbWidth, s_renderMode->xfbHeight,
+			s_renderMode->fbWidth * VI_DISPLAY_PIX_SZ);
+		VIDEO_SetNextFramebuffer(s_frameBuffers[0]);
+		VIDEO_Flush();
+		std::printf("\n\n  reVC halted: %s\n", stage);
+		std::printf("  Launch from Homebrew Channel, not USB Loader GX.\n");
+		std::printf("  USB HDD: bottom port (port 0). HBC: press 1 for USB.\n");
+		std::printf("  Need data/gta_vc.dat in apps/reVC/ on SD or USB.\n");
+	}
 	while(true)
 		VIDEO_WaitVSync();
 }
@@ -212,6 +272,12 @@ bool
 WiiVideoIsWide(void)
 {
 	return s_wideDisplay;
+}
+
+const char *
+WiiInstallDirectory(void)
+{
+	return s_installDirectory;
 }
 
 // Overrides libogc's weak symbol to make Arena2 the one and only sbrk arena.
@@ -424,7 +490,7 @@ main(int argc, char **argv)
 		WiiTraceReport("WII game boot: video=failed\n");
 		haltBoot("video");
 	}
-	if(!fatInitDefault())
+	if(!mountStorage())
 		haltBoot("storage mount");
 
 	char launchPath[128];

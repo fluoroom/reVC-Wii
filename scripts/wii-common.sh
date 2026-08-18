@@ -61,7 +61,26 @@ wii_configure_and_build() {
 	if [[ ! -f "$SD_APP/cheats-ingame.txt" ]]; then
 		cp -f "$ROOT/gamefiles/cheats-ingame.txt" "$SD_APP/cheats-ingame.txt"
 	fi
+	cp -f "$ROOT/gamefiles/icon.png" "$SD_APP/icon.png"
+	cp -f "$ROOT/gamefiles/meta.xml" "$SD_APP/meta.xml"
+	# HBC lists this tiny folder on the SD card. USB Loader GX is a game ISO
+	# loader and will not boot this DOL; a 1.5G apps/reVC on USB also times out
+	# HBC's USB scan. Keep game data on USB as apps/reVC/ if the SD is small.
+	local hbc_app="$ROOT/hbc/apps/reVC"
+	mkdir -p "$hbc_app"
+	cp -f "$BOOT_DOL" "$hbc_app/boot.dol"
+	cp -f "$ROOT/gamefiles/meta.xml" "$hbc_app/meta.xml"
+	cp -f "$ROOT/gamefiles/icon.png" "$hbc_app/icon.png"
+	cp -f "$ROOT/gamefiles/cheats.txt" "$hbc_app/cheats.txt"
+	cp -f "$ROOT/gamefiles/cheats-ingame.txt" "$hbc_app/cheats-ingame.txt"
+	if [[ -f "$SD_APP/cheats.txt" ]]; then
+		cp -f "$SD_APP/cheats.txt" "$hbc_app/cheats.txt"
+	fi
+	if [[ -f "$SD_APP/cheats-ingame.txt" ]]; then
+		cp -f "$SD_APP/cheats-ingame.txt" "$hbc_app/cheats-ingame.txt"
+	fi
 	printf 'tree %s\n' "$ROOT"
+	printf 'hbc stub %s\n' "$hbc_app"
 	printf 'installed %s -> %s\n' "$built" "$BOOT_DOL"
 	stat -c 'dol  %y %s bytes' "$BOOT_DOL"
 	# If this is older than the pad source, Dolphin would still be the previous mapping.

@@ -388,3 +388,6 @@ build-wii-release/
 
 # PC Vice City assets + boot.dol live here; not source
 sd/
+
+# tiny HBC folder (boot.dol + meta + icon + cheats) for the SD card
+hbc/

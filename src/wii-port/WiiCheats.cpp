@@ -31,19 +31,52 @@ CheatList s_startCheats;
 CheatList s_ingameCheats;
 bool s_startApplied;
 
+FILE *
+openCheatFile(const char *filename, char *opened, size_t openedSize)
+{
+	static const char *const dirs[] = {
+		"sd:/apps/reVC", "usb:/apps/reVC", "usb2:/apps/reVC",
+		"usb3:/apps/reVC", "usb4:/apps/reVC"
+	};
+	char path[192];
+
+	const char *install = WiiInstallDirectory();
+	if(install != nullptr && install[0] != '\0'){
+		std::snprintf(path, sizeof(path), "%s/%s", install, filename);
+		FILE *file = std::fopen(path, "r");
+		if(file != nullptr){
+			std::snprintf(opened, openedSize, "%s", path);
+			return file;
+		}
+	}
+
+	for(const char *directory : dirs){
+		std::snprintf(path, sizeof(path), "%s/%s", directory, filename);
+		FILE *file = std::fopen(path, "r");
+		if(file != nullptr){
+			std::snprintf(opened, openedSize, "%s", path);
+			return file;
+		}
+	}
+
+	return nullptr;
+}
+
 void
-loadCheatList(CheatList &list, const char *path, bool force)
+loadCheatList(CheatList &list, const char *filename, bool force)
 {
 	if(list.loaded && !force)
 		return;
 	list.loaded = true;
 	list.count = 0;
 
-	FILE *file = std::fopen(path, "r");
+	char opened[192];
+	FILE *file = openCheatFile(filename, opened, sizeof(opened));
 	if(file == nullptr){
-		WiiTraceReport("WII cheats: no %s\n", path);
+		WiiTraceReport("WII cheats: no %s\n", filename);
 		return;
 	}
+	WiiTraceReport("WII cheats: reading %s\n", opened);
 
 	char line[128];
 	while(list.count < kMaxCheats && std::fgets(line, sizeof(line), file)){
@@ -64,7 +97,7 @@ loadCheatList(CheatList &list, const char *path, bool force)
 		if(length == 0)
 			continue;
 		list.words[list.count][length] = '\0';
-		WiiTraceReport("WII cheats: %s queued %s\n", path, list.words[list.count]);
+		WiiTraceReport("WII cheats: %s queued %s\n", filename, list.words[list.count]);
 		list.count++;
 	}
 	std::fclose(file);

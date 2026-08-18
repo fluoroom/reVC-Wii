@@ -8,4 +8,6 @@ wii_require_data
 wii_configure_and_build "$RELEASE_BUILD_DIR" Release OFF
 
 printf 'release DOL ready at %s\n' "$BOOT_DOL"
-printf 'copy sd/apps/reVC/ to the Wii SD card as apps/reVC/\n'
+printf 'HBC: copy hbc/apps/reVC/ onto the SD card as apps/reVC/\n'
+printf 'data: copy sd/apps/reVC/ (the 1.5G game tree) to USB as apps/reVC/\n'
+printf 'launch from Homebrew Channel (press 1 for USB). USB Loader GX will not boot this.\n'

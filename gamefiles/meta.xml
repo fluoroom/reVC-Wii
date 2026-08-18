@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<app version="1">
+	<name>GTA Vice City</name>
+	<coder>OptiJuegos/Extrems</coder>
+	<version>2026-08-18</version>
+	<release_date>20260818180000</release_date>
+	<short_description>reVC Wii port</short_description>
+	<long_description>Launch from the Homebrew Channel, not USB Loader GX. In HBC press 1 to switch SD/USB. USB hard drives go in the bottom port.</long_description>
+	<ahb_access/>
+</app>
