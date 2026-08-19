@@ -5,7 +5,7 @@
 
 ## This fork
 
-Playable Wii changes on top of [OptiJuegos/reVC-Wii](https://github.com/OptiJuegos/reVC-Wii): Wiimote+Nunchuk controls, IR gun aim, PC cheat files, and 16:9 output for NTSC 480p / PAL 576p widescreen TVs.
+Playable Wii changes on top of [OptiJuegos/reVC-Wii](https://github.com/OptiJuegos/reVC-Wii): Wiimote+Nunchuk controls, IR gun aim, PC cheat files, and 16:9 / 4:3 output from `config.txt` for NTSC 480p / PAL 576p.
 
 Homebrew Channel PNG banner and meta.xml
 
@@ -55,7 +55,15 @@ Templates are in `gamefiles/`. Example words: `thugstools`, `aspirine`, `panzer`
 
 ### Display
 
-On Wii, brightness and draw distance default to max, and the game FOV is 16:9. Analog output fills the 720-wide NTSC/PAL line (no 4:3 pillarbox). SYSCONF 4:3 is ignored because many widescreen TVs still have the Wii set to 4:3. Restore defaults in the display menu uses the same maxima.
+`apps/reVC/config.txt` sits next to `boot.dol` (same place as the cheat files). It is read once at boot. Missing file is 16:9.
+
+```
+aspect=16:9
+```
+
+Both modes fill the analog NTSC/PAL line (no pillarbox). `16:9` is anamorphic HOR+ FOV and a widescreen HUD. `4:3` keeps original FOV and HUD so a 4:3 TV is not stretched. Also accepted: `16/9`, `widescreen`, `4/3`, `standard`. SYSCONF is ignored; this file is the source of truth. The in-game widescreen option toggles the same two modes. Restore defaults returns to whatever `config.txt` said.
+
+On Wii, brightness and draw distance default to max. Restore defaults in the display menu uses the same maxima.
 
 ## GTA VICE CITY WII port
 

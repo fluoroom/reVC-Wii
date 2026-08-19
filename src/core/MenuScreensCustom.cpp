@@ -30,6 +30,9 @@
 #include "IniFile.h"
 #include "CarCtrl.h"
 #include "Population.h"
+#ifdef NINTENDO_WII
+#include "WiiVideo.h"
+#endif
 
 // Menu screens array is at the bottom of the file.
 
@@ -131,7 +134,12 @@ void RestoreDefGraphics(int8 action) {
 		#ifdef LEGACY_MENU_OPTIONS
 			FrontEndMenuManager.m_PrefsVsync = true;
 		#endif
+#ifdef NINTENDO_WII
+		WiiVideoSetWide(WiiVideoDefaultIsWide());
+		WiiVideoSyncGamePref();
+#else
 		FrontEndMenuManager.m_PrefsUseWideScreen = false;
+#endif
 		FrontEndMenuManager.m_nDisplayVideoMode = FrontEndMenuManager.m_nPrefsVideoMode;
 		CMBlur::BlurOn = false;
 		FrontEndMenuManager.SaveSettings();

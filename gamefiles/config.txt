@@ -1,0 +1,7 @@
+# Place next to boot.dol as apps/reVC/config.txt
+# Read once at boot. Missing file defaults to 16:9.
+#
+# 16:9  anamorphic 16:9 FOV/HUD, analog line filled
+# 4:3   original 4:3 FOV/HUD, analog line still filled (for 4:3 TVs)
+#
+aspect=16:9

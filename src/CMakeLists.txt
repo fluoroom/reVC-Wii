@@ -16,6 +16,7 @@ if(NINTENDO_WII)
             "${CMAKE_CURRENT_SOURCE_DIR}/audio/WiiSfxCache.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/wii-port/wii_game.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/wii-port/WiiCheats.cpp"
+            "${CMAKE_CURRENT_SOURCE_DIR}/wii-port/WiiConfig.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/wii-port/WiiPad.cpp"
             "${CMAKE_CURRENT_SOURCE_DIR}/wii-port/WiiTrace.cpp"
         )

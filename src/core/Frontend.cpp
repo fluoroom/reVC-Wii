@@ -35,6 +35,9 @@
 #include "FileLoader.h"
 #include "User.h"
 #include "sampman.h"
+#ifdef NINTENDO_WII
+#include "WiiVideo.h"
+#endif
 
 // Similar story to Hud.cpp:
 // Game has colors inlined in code.
@@ -4937,7 +4940,8 @@ CMenuManager::ProcessUserInput(uint8 goDown, uint8 goUp, uint8 optionSelected, u
 					CRenderer::ms_lodDistScale = m_PrefsLOD;
 					m_PrefsShowSubtitles = false;
 #ifdef NINTENDO_WII
-					m_PrefsUseWideScreen = AR_16_9;
+					WiiVideoSetWide(WiiVideoDefaultIsWide());
+					WiiVideoSyncGamePref();
 #elif defined ASPECT_RATIO_SCALE
 					m_PrefsUseWideScreen = AR_AUTO;
 #else
@@ -5099,6 +5103,10 @@ CMenuManager::ProcessUserInput(uint8 goDown, uint8 goUp, uint8 optionSelected, u
 				break;
 #ifdef ASPECT_RATIO_SCALE
 			case MENUACTION_WIDESCREEN:
+#ifdef NINTENDO_WII
+				WiiVideoSetWide(!WiiVideoIsWide());
+				WiiVideoSyncGamePref();
+#else
 				if (changeAmount > 0) {
 					m_PrefsUseWideScreen++;
 					if (m_PrefsUseWideScreen > AR_MAX - 1)
@@ -5108,6 +5116,7 @@ CMenuManager::ProcessUserInput(uint8 goDown, uint8 goUp, uint8 optionSelected, u
 					if (m_PrefsUseWideScreen < 0)
 						m_PrefsUseWideScreen = AR_MAX - 1;
 				}
+#endif
 				SaveSettings();
 				break;
 #endif

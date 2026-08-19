@@ -25,6 +25,8 @@
 #include "PCSave.h"
 #include "platform.h"
 #include "skeleton.h"
+#include "Draw.h"
+#include "WiiConfig.h"
 #include "WiiLog.h"
 #include "WiiPad.h"
 #include "WiiTrace.h"
@@ -54,6 +56,35 @@ GXRModeObj *s_renderMode;
 void *s_frameBuffers[2];
 char s_installDirectory[128] = "sd:/apps/reVC";
 bool s_wideDisplay = true;
+bool s_wideDisplayDefault = true;
+
+// 640x480 (or PAL 576) is 4:3 in pixel count.  Preferred mode leaves viWidth
+// at 640 centred in the 720-wide analog line, which is the pillarbox.  Fill
+// almost all of that line for both 16:9 and 4:3: a 4:3 TV then shows the
+// framebuffer edge-to-edge, and 16:9 is the same analog fill with anamorphic
+// FOV packed into those pixels.
+//
+// 720 with origin 0 is not safe: SYSCONF screen-position is added on top, the
+// encoder region then exceeds 720, and VIDEO_WaitVSync never returns on a
+// real Wii.  Dolphin still draws.  704 leaves 16px of slop; commercial titles
+// sit around 670–704.
+void
+applyAnalogFill(void)
+{
+	if(s_renderMode == nullptr)
+		return;
+
+	const u16 maxWidth =
+		((s_renderMode->viTVMode >> 2) == VI_PAL) ? VI_MAX_WIDTH_PAL :
+		VI_MAX_WIDTH_NTSC;
+	u16 viWidth = 704;
+	if(viWidth < s_renderMode->fbWidth)
+		viWidth = s_renderMode->fbWidth;
+	if(viWidth > maxWidth)
+		viWidth = maxWidth;
+	s_renderMode->viWidth = viWidth;
+	s_renderMode->viXOrigin = (u16)((maxWidth - viWidth) / 2);
+}
 
 void
 onVerticalRetrace(u32)
@@ -174,27 +205,8 @@ initializeVideo()
 	s_rmodeObj = *preferred;
 	s_renderMode = &s_rmodeObj;
 
-	// 640x480 (or PAL 576) is 4:3 in pixel count.  Preferred mode leaves viWidth
-	// at 640 centred in the 720-wide analog line, which is the pillarbox.  Fill
-	// almost all of that line and render anamorphic 16:9.
-	//
-	// 720 with origin 0 is not safe: SYSCONF screen-position is added on top, the
-	// encoder region then exceeds 720, and VIDEO_WaitVSync never returns on a
-	// real Wii.  Dolphin still draws.  704 leaves 16px of slop; commercial 16:9
-	// titles sit around 670–704.
+	applyAnalogFill();
 	s_wideDisplay = true;
-	{
-		const u16 maxWidth =
-			((s_renderMode->viTVMode >> 2) == VI_PAL) ? VI_MAX_WIDTH_PAL :
-			VI_MAX_WIDTH_NTSC;
-		u16 viWidth = 704;
-		if(viWidth < s_renderMode->fbWidth)
-			viWidth = s_renderMode->fbWidth;
-		if(viWidth > maxWidth)
-			viWidth = maxWidth;
-		s_renderMode->viWidth = viWidth;
-		s_renderMode->viXOrigin = (u16)((maxWidth - viWidth) / 2);
-	}
 
 	for(void *&frameBuffer : s_frameBuffers){
 		frameBuffer = MEM_K0_TO_K1(SYS_AllocateFramebuffer(s_renderMode));
@@ -272,6 +284,26 @@ bool
 WiiVideoIsWide(void)
 {
 	return s_wideDisplay;
+}
+
+bool
+WiiVideoDefaultIsWide(void)
+{
+	return s_wideDisplayDefault;
+}
+
+void
+WiiVideoSetWide(bool wide)
+{
+	// Analog already fills the line.  This only switches FOV and HUD between
+	// anamorphic 16:9 and packed 4:3 for a 4:3 set.
+	s_wideDisplay = wide;
+}
+
+void
+WiiVideoSyncGamePref(void)
+{
+	FrontEndMenuManager.m_PrefsUseWideScreen = s_wideDisplay ? AR_16_9 : AR_4_3;
 }
 
 const char *
@@ -505,6 +537,11 @@ main(int argc, char **argv)
 		haltBoot("game data lookup");
 	WiiTraceOpenLog(s_installDirectory);
 
+	WiiConfigLoad();
+	s_wideDisplayDefault = WiiConfigWantWide();
+	WiiVideoSetWide(s_wideDisplayDefault);
+	WiiVideoSyncGamePref();
+
 	// psInitialize stores exactly these two into RsGlobal, and the pointer has to
 	// report against the same pair, so both are taken from the render mode here
 	// rather than from RsGlobal, which is still empty this early.
@@ -540,7 +577,7 @@ main(int argc, char **argv)
 	FrontEndMenuManager.m_PrefsBrightness = 384;
 	FrontEndMenuManager.m_PrefsLOD = 1.8f;
 	CRenderer::ms_lodDistScale = 1.8f;
-	FrontEndMenuManager.m_PrefsUseWideScreen = AR_16_9;
+	WiiVideoSyncGamePref();
 	WiiTraceReport("WII display: wide=%d vi=%ux%u fb=%ux%u\n",
 		s_wideDisplay ? 1 : 0,
 		s_renderMode->viWidth, s_renderMode->viHeight,

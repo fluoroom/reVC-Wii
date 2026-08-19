@@ -61,6 +61,9 @@ wii_configure_and_build() {
 	if [[ ! -f "$SD_APP/cheats-ingame.txt" ]]; then
 		cp -f "$ROOT/gamefiles/cheats-ingame.txt" "$SD_APP/cheats-ingame.txt"
 	fi
+	if [[ ! -f "$SD_APP/config.txt" ]]; then
+		cp -f "$ROOT/gamefiles/config.txt" "$SD_APP/config.txt"
+	fi
 	cp -f "$ROOT/gamefiles/icon.png" "$SD_APP/icon.png"
 	cp -f "$ROOT/gamefiles/meta.xml" "$SD_APP/meta.xml"
 	# HBC lists this tiny folder on the SD card. USB Loader GX is a game ISO
@@ -73,11 +76,15 @@ wii_configure_and_build() {
 	cp -f "$ROOT/gamefiles/icon.png" "$hbc_app/icon.png"
 	cp -f "$ROOT/gamefiles/cheats.txt" "$hbc_app/cheats.txt"
 	cp -f "$ROOT/gamefiles/cheats-ingame.txt" "$hbc_app/cheats-ingame.txt"
+	cp -f "$ROOT/gamefiles/config.txt" "$hbc_app/config.txt"
 	if [[ -f "$SD_APP/cheats.txt" ]]; then
 		cp -f "$SD_APP/cheats.txt" "$hbc_app/cheats.txt"
 	fi
 	if [[ -f "$SD_APP/cheats-ingame.txt" ]]; then
 		cp -f "$SD_APP/cheats-ingame.txt" "$hbc_app/cheats-ingame.txt"
+	fi
+	if [[ -f "$SD_APP/config.txt" ]]; then
+		cp -f "$SD_APP/config.txt" "$hbc_app/config.txt"
 	fi
 	printf 'tree %s\n' "$ROOT"
 	printf 'hbc stub %s\n' "$hbc_app"
@@ -176,6 +183,9 @@ wii_inject_boot_dol() {
 	fi
 	if [[ -f "$SD_APP/cheats-ingame.txt" ]]; then
 		mcopy -i "$SD_IMAGE" -o "$SD_APP/cheats-ingame.txt" ::apps/reVC/cheats-ingame.txt
+	fi
+	if [[ -f "$SD_APP/config.txt" ]]; then
+		mcopy -i "$SD_IMAGE" -o "$SD_APP/config.txt" ::apps/reVC/config.txt
 	fi
 }
 
