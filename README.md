@@ -19,6 +19,8 @@ Default control method is Classic. The follow camera is Z + nunchuk stick, not t
 
 Swing the remote to punch when a melee weapon is equipped; B still punches too.
 
+Aim by pointing target with Wiimote.
+
 | Input | On foot | In car |
 | --- | --- | --- |
 | Nunchuk stick | Move | Steer |
