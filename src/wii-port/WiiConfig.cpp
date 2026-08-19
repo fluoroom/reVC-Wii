@@ -10,6 +10,7 @@ namespace
 {
 
 bool s_wantWide = true;
+WiiConfigVideo s_wantVideo = WiiConfigVideoAuto;
 
 void
 trim(char *&start, char *&end)
@@ -54,6 +55,50 @@ parseWideValue(const char *value, bool &wide)
 	return true;
 }
 
+bool
+parseVideoValue(const char *value, WiiConfigVideo &video)
+{
+	char lowered[32];
+	lowerCopy(lowered, sizeof(lowered), value);
+
+	if(std::strcmp(lowered, "pal") == 0 ||
+	   std::strcmp(lowered, "pal50") == 0 ||
+	   std::strcmp(lowered, "50hz") == 0 ||
+	   std::strcmp(lowered, "50") == 0 ||
+	   std::strcmp(lowered, "576") == 0 ||
+	   std::strcmp(lowered, "576p") == 0 ||
+	   std::strcmp(lowered, "576i") == 0)
+		video = WiiConfigVideoPal;
+	else if(std::strcmp(lowered, "ntsc") == 0 ||
+		std::strcmp(lowered, "60hz") == 0 ||
+		std::strcmp(lowered, "60") == 0 ||
+		std::strcmp(lowered, "480") == 0 ||
+		std::strcmp(lowered, "480p") == 0 ||
+		std::strcmp(lowered, "480i") == 0)
+		video = WiiConfigVideoNtsc;
+	else if(std::strcmp(lowered, "auto") == 0 ||
+		std::strcmp(lowered, "sysconf") == 0 ||
+		std::strcmp(lowered, "default") == 0 ||
+		std::strcmp(lowered, "hbc") == 0)
+		video = WiiConfigVideoAuto;
+	else
+		return false;
+	return true;
+}
+
+const char *
+videoName(WiiConfigVideo video)
+{
+	switch(video){
+	case WiiConfigVideoPal:
+		return "PAL";
+	case WiiConfigVideoNtsc:
+		return "NTSC";
+	default:
+		return "auto";
+	}
+}
+
 FILE *
 openConfigFile(char *opened, size_t openedSize)
 {
@@ -91,11 +136,12 @@ void
 WiiConfigLoad(void)
 {
 	s_wantWide = true;
+	s_wantVideo = WiiConfigVideoAuto;
 
 	char opened[192];
 	FILE *file = openConfigFile(opened, sizeof(opened));
 	if(file == nullptr){
-		WiiTraceReport("WII config: no config.txt, aspect=16:9\n");
+		WiiTraceReport("WII config: no config.txt, aspect=16:9 video=auto\n");
 		return;
 	}
 	WiiTraceReport("WII config: reading %s\n", opened);
@@ -130,18 +176,29 @@ WiiConfigLoad(void)
 
 		char key[32];
 		lowerCopy(key, sizeof(key), start);
-		if(std::strcmp(key, "aspect") != 0 &&
-		   std::strcmp(key, "widescreen") != 0 &&
-		   std::strcmp(key, "ratio") != 0)
-			continue;
-
-		bool wide;
-		if(!parseWideValue(value, wide)){
-			WiiTraceReport("WII config: ignored aspect=%s\n", value);
+		if(std::strcmp(key, "aspect") == 0 ||
+		   std::strcmp(key, "widescreen") == 0 ||
+		   std::strcmp(key, "ratio") == 0){
+			bool wide;
+			if(!parseWideValue(value, wide)){
+				WiiTraceReport("WII config: ignored aspect=%s\n", value);
+				continue;
+			}
+			s_wantWide = wide;
+			WiiTraceReport("WII config: aspect=%s\n", wide ? "16:9" : "4:3");
 			continue;
 		}
-		s_wantWide = wide;
-		WiiTraceReport("WII config: aspect=%s\n", wide ? "16:9" : "4:3");
+		if(std::strcmp(key, "video") == 0 ||
+		   std::strcmp(key, "videomode") == 0 ||
+		   std::strcmp(key, "tv") == 0){
+			WiiConfigVideo video;
+			if(!parseVideoValue(value, video)){
+				WiiTraceReport("WII config: ignored video=%s\n", value);
+				continue;
+			}
+			s_wantVideo = video;
+			WiiTraceReport("WII config: video=%s\n", videoName(video));
+		}
 	}
 	std::fclose(file);
 }
@@ -150,4 +207,10 @@ bool
 WiiConfigWantWide(void)
 {
 	return s_wantWide;
+}
+
+WiiConfigVideo
+WiiConfigWantVideo(void)
+{
+	return s_wantVideo;
 }

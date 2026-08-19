@@ -1,7 +1,12 @@
 # Place next to boot.dol as apps/reVC/config.txt
-# Read once at boot. Missing file defaults to 16:9.
+# Read once at boot. Missing file defaults to 16:9 and SYSCONF video (like HBC).
 #
 # 16:9  anamorphic 16:9 FOV/HUD, analog line filled
 # 4:3   original 4:3 FOV/HUD, analog line still filled (for 4:3 TVs)
 #
+# video=auto  follow SYSCONF / AnyRegionChanger VIDEO, same as HBC
+# video=PAL   force 50Hz 576 (528 EFB), ignores EURGB60
+# video=NTSC  force 480
+#
 aspect=16:9
+video=PAL

@@ -58,11 +58,16 @@ char s_installDirectory[128] = "sd:/apps/reVC";
 bool s_wideDisplay = true;
 bool s_wideDisplayDefault = true;
 
-// 640x480 (or PAL 576) is 4:3 in pixel count.  Preferred mode leaves viWidth
-// at 640 centred in the 720-wide analog line, which is the pillarbox.  Fill
-// almost all of that line for both 16:9 and 4:3: a 4:3 TV then shows the
-// framebuffer edge-to-edge, and 16:9 is the same analog fill with anamorphic
-// FOV packed into those pixels.
+// GX EFB is 640x528 RGB+Z.  NTSC and EURGB60 already use the full 480 analog
+// lines.  PAL 50Hz preferred modes render 480 and Y-scale into a 576-line XFB;
+// use the leftover 48 EFB lines so the scale is 528→576 instead of 480→576.
+constexpr u16 kGxEfbHeightMax = 528;
+
+// 640x480 (PAL EFB 528, analog 576) is 4:3 in pixel count.  Preferred mode
+// leaves viWidth at 640 centred in the 720-wide analog line, which is the
+// pillarbox.  Fill almost all of that line for both 16:9 and 4:3: a 4:3 TV
+// then shows the framebuffer edge-to-edge, and 16:9 is the same analog fill
+// with anamorphic FOV packed into those pixels.
 //
 // 720 with origin 0 is not safe: SYSCONF screen-position is added on top, the
 // encoder region then exceeds 720, and VIDEO_WaitVSync never returns on a
@@ -84,6 +89,98 @@ applyAnalogFill(void)
 		viWidth = maxWidth;
 	s_renderMode->viWidth = viWidth;
 	s_renderMode->viXOrigin = (u16)((maxWidth - viWidth) / 2);
+}
+
+void
+applyPalEfbHeight(void)
+{
+	if(s_renderMode == nullptr)
+		return;
+	// EURGB60 is PAL hardware running 480i/480p.  Leave it; only 50Hz PAL
+	// has spare analog lines to scale into.
+	if((s_renderMode->viTVMode >> 2) != VI_PAL)
+		return;
+
+	s_renderMode->efbHeight = kGxEfbHeightMax;
+
+	// TVPal576*Scale already XFB/VI at 576.  A native 528-line PAL mode
+	// would letterbox; raise analog height to the PAL line.
+	if(s_renderMode->xfbHeight < VI_MAX_HEIGHT_PAL){
+		s_renderMode->xfbHeight = VI_MAX_HEIGHT_PAL;
+		s_renderMode->viHeight = VI_MAX_HEIGHT_PAL;
+		s_renderMode->viYOrigin = 0;
+	}
+}
+
+GXRModeObj *
+forcedVideoMode(WiiConfigVideo video)
+{
+	const bool progressive =
+		CONF_GetProgressiveScan() > 0 && VIDEO_HaveComponentCable();
+	if(video == WiiConfigVideoPal)
+		return progressive ? &TVPal576ProgScale : &TVPal576IntDfScale;
+	return progressive ? &TVNtsc480Prog : &TVNtsc480IntDf;
+}
+
+void *
+allocateXfb(void)
+{
+	// Always size for PAL 576 so config.txt can switch NTSC→PAL after the
+	// first SYSCONF mode is already up (config lives on SD/USB).
+	GXRModeObj alloc = *s_renderMode;
+	if(alloc.xfbHeight < VI_MAX_HEIGHT_PAL)
+		alloc.xfbHeight = VI_MAX_HEIGHT_PAL;
+	return MEM_K0_TO_K1(SYS_AllocateFramebuffer(&alloc));
+}
+
+void
+setupGxCopy(void)
+{
+	GX_SetViewport(0.0f, 0.0f, s_renderMode->fbWidth,
+	               s_renderMode->efbHeight, 0.0f, 1.0f);
+	GX_SetScissor(0, 0, s_renderMode->fbWidth, s_renderMode->efbHeight);
+	GX_SetDispCopySrc(0, 0, s_renderMode->fbWidth, s_renderMode->efbHeight);
+	GX_SetDispCopyDst(s_renderMode->fbWidth, s_renderMode->xfbHeight);
+	GX_SetDispCopyYScale(GX_GetYScaleFactor(s_renderMode->efbHeight,
+	                                       s_renderMode->xfbHeight));
+	GX_SetCopyFilter(s_renderMode->aa, s_renderMode->sample_pattern,
+	                 GX_TRUE, s_renderMode->vfilter);
+	GX_SetFieldMode(s_renderMode->field_rendering,
+	                s_renderMode->viHeight == 2*s_renderMode->xfbHeight ?
+	                GX_ENABLE : GX_DISABLE);
+}
+
+void
+commitVideoMode(void)
+{
+	VIDEO_Configure(s_renderMode);
+	VIDEO_SetNextFramebuffer(s_frameBuffers[0]);
+	VIDEO_Flush();
+	VIDEO_WaitVSync();
+	if(s_renderMode->viTVMode & VI_NON_INTERLACE)
+		VIDEO_WaitVSync();
+}
+
+void
+applyConfigVideoMode(void)
+{
+	const WiiConfigVideo want = WiiConfigWantVideo();
+	if(want == WiiConfigVideoAuto){
+		WiiTraceReport("WII video: auto (SYSCONF, same as HBC)\n");
+		return;
+	}
+
+	s_rmodeObj = *forcedVideoMode(want);
+	applyAnalogFill();
+	applyPalEfbHeight();
+	for(void *frameBuffer : s_frameBuffers){
+		if(frameBuffer != nullptr)
+			VIDEO_ClearFrameBuffer(s_renderMode, frameBuffer, COLOR_BLACK);
+	}
+	commitVideoMode();
+	setupGxCopy();
+	WiiTraceReport("WII video: config=%s (SYSCONF ignored)\n",
+		want == WiiConfigVideoPal ? "PAL" : "NTSC");
 }
 
 void
@@ -206,10 +303,11 @@ initializeVideo()
 	s_renderMode = &s_rmodeObj;
 
 	applyAnalogFill();
+	applyPalEfbHeight();
 	s_wideDisplay = true;
 
 	for(void *&frameBuffer : s_frameBuffers){
-		frameBuffer = MEM_K0_TO_K1(SYS_AllocateFramebuffer(s_renderMode));
+		frameBuffer = allocateXfb();
 		if(frameBuffer == nullptr)
 			return false;
 
@@ -218,14 +316,9 @@ initializeVideo()
 		VIDEO_ClearFrameBuffer(s_renderMode, frameBuffer, COLOR_BLACK);
 	}
 
-	VIDEO_Configure(s_renderMode);
-	VIDEO_SetNextFramebuffer(s_frameBuffers[0]);
+	commitVideoMode();
 	VIDEO_SetBlack(FALSE);
 	VIDEO_SetPostRetraceCallback(onVerticalRetrace);
-	VIDEO_Flush();
-	VIDEO_WaitVSync();
-	if(s_renderMode->viTVMode & VI_NON_INTERLACE)
-		VIDEO_WaitVSync();
 
 	void *fifo = memalign(32, kFifoSize);
 	if(fifo == nullptr)
@@ -236,17 +329,7 @@ initializeVideo()
 	// para el background bien
 	GXColor background = { 0, 0, 0, 255 };
 	GX_SetCopyClear(background, GX_MAX_Z24);
-	GX_SetViewport(0.0f, 0.0f, s_renderMode->fbWidth,
-	               s_renderMode->efbHeight, 0.0f, 1.0f);
-	GX_SetDispCopyYScale((f32)s_renderMode->xfbHeight/(f32)s_renderMode->efbHeight);
-	GX_SetScissor(0, 0, s_renderMode->fbWidth, s_renderMode->efbHeight);
-	GX_SetDispCopySrc(0, 0, s_renderMode->fbWidth, s_renderMode->efbHeight);
-	GX_SetDispCopyDst(s_renderMode->fbWidth, s_renderMode->xfbHeight);
-	GX_SetCopyFilter(s_renderMode->aa, s_renderMode->sample_pattern,
-	                 GX_TRUE, s_renderMode->vfilter);
-	GX_SetFieldMode(s_renderMode->field_rendering,
-	                s_renderMode->viHeight == 2*s_renderMode->xfbHeight ?
-	                GX_ENABLE : GX_DISABLE);
+	setupGxCopy();
 	GX_SetPixelFmt(GX_PF_RGB8_Z24, GX_ZC_LINEAR);
 	GX_SetCullMode(GX_CULL_NONE);
 	GX_SetDispCopyGamma(GX_GM_1_0);
@@ -538,6 +621,7 @@ main(int argc, char **argv)
 	WiiTraceOpenLog(s_installDirectory);
 
 	WiiConfigLoad();
+	applyConfigVideoMode();
 	s_wideDisplayDefault = WiiConfigWantWide();
 	WiiVideoSetWide(s_wideDisplayDefault);
 	WiiVideoSyncGamePref();
@@ -578,10 +662,11 @@ main(int argc, char **argv)
 	FrontEndMenuManager.m_PrefsLOD = 1.8f;
 	CRenderer::ms_lodDistScale = 1.8f;
 	WiiVideoSyncGamePref();
-	WiiTraceReport("WII display: wide=%d vi=%ux%u fb=%ux%u\n",
+	WiiTraceReport("WII display: wide=%d vi=%ux%u efb=%ux%u xfb=%ux%u\n",
 		s_wideDisplay ? 1 : 0,
 		s_renderMode->viWidth, s_renderMode->viHeight,
-		s_renderMode->fbWidth, s_renderMode->efbHeight);
+		s_renderMode->fbWidth, s_renderMode->efbHeight,
+		s_renderMode->fbWidth, s_renderMode->xfbHeight);
 
 	// The game state machine the PC skeleton drives from its message loop.
 	// The movie and PS2 memory card states have no counterpart here, so boot

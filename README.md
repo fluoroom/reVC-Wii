@@ -55,13 +55,18 @@ Templates are in `gamefiles/`. Example words: `thugstools`, `aspirine`, `panzer`
 
 ### Display
 
-`apps/reVC/config.txt` sits next to `boot.dol` (same place as the cheat files). It is read once at boot. Missing file is 16:9.
+`apps/reVC/config.txt` sits next to `boot.dol` (same place as the cheat files). It is read once at boot. Missing file is 16:9 and `video=auto`.
 
 ```
 aspect=16:9
+video=PAL
 ```
 
-Both modes fill the analog NTSC/PAL line (no pillarbox). `16:9` is anamorphic HOR+ FOV and a widescreen HUD. `4:3` keeps original FOV and HUD so a 4:3 TV is not stretched. Also accepted: `16/9`, `widescreen`, `4/3`, `standard`. SYSCONF is ignored; this file is the source of truth. The in-game widescreen option toggles the same two modes. Restore defaults returns to whatever `config.txt` said.
+`aspect` is 16:9 or 4:3. Both fill the analog NTSC/PAL line (no pillarbox). `16:9` is anamorphic HOR+ FOV and a widescreen HUD. `4:3` keeps original FOV and HUD so a 4:3 TV is not stretched. Also accepted: `16/9`, `widescreen`, `4/3`, `standard`. SYSCONF aspect is ignored; this file is the source of truth. The in-game widescreen option toggles the same two modes. Restore defaults returns to whatever `config.txt` said.
+
+`video` is PAL 50Hz 576, NTSC 480, or `auto`. `auto` (and a missing line) uses `VIDEO_GetPreferredMode`, the same SYSCONF / `setting.txt` VIDEO HBC uses — including AnyRegion Changer. EURGB60 on a PAL Wii still yields 480 in that path. `video=PAL` forces 576 and ignores EURGB60; that is the per-app switch HBC does not have. Progressive scan still follows SYSCONF plus component cable.
+
+The GX framebuffer is 640×480 on NTSC. PAL 50Hz renders 640×528 (the GX EFB ceiling) and Y-scales into the 576-line analog picture. Width cannot go past 640.
 
 On Wii, brightness and draw distance default to max. Restore defaults in the display menu uses the same maxima.
 
