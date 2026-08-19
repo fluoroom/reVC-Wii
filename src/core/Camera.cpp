@@ -4020,6 +4020,14 @@ CCamera::Get3rdPersonAimTanOffset(float &tanX, float &tanY)
 	else if(y > 1.0f) y = 1.0f;
 	const float ndcX = (x - 0.5f) * 2.0f;
 	const float ndcY = (0.5f - y) * 2.0f;
+	if(TheCamera.m_pRwCamera){
+		const RwV2d *vw = RwCameraGetViewWindow(TheCamera.m_pRwCamera);
+		if(vw != nil && vw->x > 0.05f && vw->y > 0.05f){
+			tanX = ndcX * vw->x;
+			tanY = ndcY * vw->y;
+			return;
+		}
+	}
 	float fov = CDraw::GetScaledFOV();
 	if(fov < 10.0f) fov = 10.0f;
 	else if(fov > 160.0f) fov = 160.0f;

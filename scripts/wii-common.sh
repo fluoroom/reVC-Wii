@@ -58,9 +58,6 @@ wii_configure_and_build() {
 	if [[ ! -f "$SD_APP/cheats.txt" ]]; then
 		cp -f "$ROOT/gamefiles/cheats.txt" "$SD_APP/cheats.txt"
 	fi
-	if [[ ! -f "$SD_APP/cheats-ingame.txt" ]]; then
-		cp -f "$ROOT/gamefiles/cheats-ingame.txt" "$SD_APP/cheats-ingame.txt"
-	fi
 	if [[ ! -f "$SD_APP/config.txt" ]]; then
 		cp -f "$ROOT/gamefiles/config.txt" "$SD_APP/config.txt"
 	fi
@@ -75,13 +72,10 @@ wii_configure_and_build() {
 	cp -f "$ROOT/gamefiles/meta.xml" "$hbc_app/meta.xml"
 	cp -f "$ROOT/gamefiles/icon.png" "$hbc_app/icon.png"
 	cp -f "$ROOT/gamefiles/cheats.txt" "$hbc_app/cheats.txt"
-	cp -f "$ROOT/gamefiles/cheats-ingame.txt" "$hbc_app/cheats-ingame.txt"
 	cp -f "$ROOT/gamefiles/config.txt" "$hbc_app/config.txt"
+	rm -f "$hbc_app/cheats-ingame.txt"
 	if [[ -f "$SD_APP/cheats.txt" ]]; then
 		cp -f "$SD_APP/cheats.txt" "$hbc_app/cheats.txt"
-	fi
-	if [[ -f "$SD_APP/cheats-ingame.txt" ]]; then
-		cp -f "$SD_APP/cheats-ingame.txt" "$hbc_app/cheats-ingame.txt"
 	fi
 	if [[ -f "$SD_APP/config.txt" ]]; then
 		cp -f "$SD_APP/config.txt" "$hbc_app/config.txt"
@@ -180,9 +174,6 @@ wii_inject_boot_dol() {
 	mcopy -i "$SD_IMAGE" -o "$BOOT_DOL" ::apps/reVC/boot.dol
 	if [[ -f "$SD_APP/cheats.txt" ]]; then
 		mcopy -i "$SD_IMAGE" -o "$SD_APP/cheats.txt" ::apps/reVC/cheats.txt
-	fi
-	if [[ -f "$SD_APP/cheats-ingame.txt" ]]; then
-		mcopy -i "$SD_IMAGE" -o "$SD_APP/cheats-ingame.txt" ::apps/reVC/cheats-ingame.txt
 	fi
 	if [[ -f "$SD_APP/config.txt" ]]; then
 		mcopy -i "$SD_IMAGE" -o "$SD_APP/config.txt" ::apps/reVC/config.txt

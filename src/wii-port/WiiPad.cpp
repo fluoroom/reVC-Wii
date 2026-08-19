@@ -12,6 +12,7 @@
 #include "PlayerPed.h"
 #include "PlayerInfo.h"
 #include "Timer.h"
+#include "WiiCheats.h"
 #include "WiiPad.h"
 #include "WiiTrace.h"
 #include "platform.h"
@@ -164,6 +165,7 @@ float s_heldSeconds;
 bool s_pointerAimActive;
 bool s_wasPointerAiming;
 bool s_haveCHair;
+bool s_suppressFireUntilRelease;
 float s_lastCHairX = 0.53f;
 float s_lastCHairY = 0.4f;
 
@@ -874,6 +876,12 @@ WiiPadScan(void)
 void
 WiiPadCapture(int padID, CControllerState &state)
 {
+	if(WiiCheatsMenuActive()){
+		s_suppressFireUntilRelease = true;
+		state.Clear();
+		return;
+	}
+
 	const StickSettings settings = currentStickSettings();
 
 	StickAccumulator sticks = { 0.0f, 0.0f, 0.0f, 0.0f };
@@ -892,6 +900,20 @@ WiiPadCapture(int padID, CControllerState &state)
 	state.LeftStickY = toAxis(sticks.leftY, settings.leftSensitivityY);
 	state.RightStickX = toAxis(sticks.rightX, settings.rightSensitivityX);
 	state.RightStickY = toAxis(sticks.rightY, settings.rightSensitivityY);
+
+	if(s_suppressFireUntilRelease){
+		const u32 wiiHeld = WPAD_ButtonsHeld(WPAD_CHAN_0);
+		const u16 gcHeld = PAD_ButtonsHeld(PAD_CHAN0);
+		const bool confirmHeld =
+			(wiiHeld & (WPAD_BUTTON_A | WPAD_BUTTON_B | WPAD_CLASSIC_BUTTON_A | WPAD_CLASSIC_BUTTON_B)) != 0
+			|| (gcHeld & (PAD_BUTTON_A | PAD_BUTTON_B)) != 0;
+		if(confirmHeld){
+			state.Circle = 0;
+			state.Cross = 0;
+		}else{
+			s_suppressFireUntilRelease = false;
+		}
+	}
 }
 
 void
@@ -911,6 +933,12 @@ WiiPadCaptureMouse(CMouseControllerState &state)
 	const bool tracked = data->ir.valid != 0;
 	const u32 expansion = probeExpansion(WPAD_CHAN_0, *data);
 	const bool nunchuk = expansion == WPAD_EXP_NUNCHUK;
+
+	if(WiiCheatsMenuActive()){
+		s_suppressFireUntilRelease = true;
+		stopPointerHold();
+		return;
+	}
 
 	if(FrontEndMenuManager.m_bMenuActive){
 		// A cursor, absolutely: aiming at an option has to put the cursor on that

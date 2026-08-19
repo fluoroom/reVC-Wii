@@ -77,6 +77,7 @@
 #include "VarConsole.h"
 #ifdef NINTENDO_WII
 #include "wii-port/WiiLog.h"
+#include "WiiCheats.h"
 #endif
 #ifdef USE_OUR_VERSIONING
 #include "GitSHA1.h"
@@ -1498,6 +1499,9 @@ Render2dStuff(void)
 	CDarkel::DrawMessages();
 	CGarages::PrintMessages();
 	CPad::PrintErrorMessage();
+#ifdef NINTENDO_WII
+	WiiCheatsRender();
+#endif
 	CFont::DrawFonts();
 #ifndef MASTER
 	COcclusion::Render();

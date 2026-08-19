@@ -5,7 +5,10 @@
 // must be opened with this prefix rather than a bare filename.
 const char *WiiInstallDirectory(void);
 
-// cheats.txt runs once when Tommy exists.  cheats-ingame.txt runs on Wiimote 1+2.
+// cheats.txt runs once when Tommy exists.  Wiimote 1+2 opens an in-game picker
+// (CodePause) over the built-in cheat list.
 void WiiCheatsProcess(void);
+void WiiCheatsRender(void);
+bool WiiCheatsMenuActive(void);
 
 #endif

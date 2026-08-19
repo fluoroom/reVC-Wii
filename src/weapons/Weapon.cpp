@@ -893,7 +893,14 @@ CWeapon::FireInstantHit(CEntity *shooter, CVector *fireSource)
 		prev_heading = ((CPed*)shooter)->m_fRotationCur;
 	}
 
-	if ( shooter->IsPed() && ((CPed *)shooter)->m_pPointGunAt )
+	if ( shooter->IsPed() && ((CPed *)shooter)->m_pPointGunAt
+#ifdef NINTENDO_WII
+		// Two-handed IK cannot reach the pointer at the screen edge, and the
+		// hand fallback then fires along the barrel (camera centre) while the
+		// crosshair stays on the IR.  Keep the camera ray instead.
+		&& !(shooter == FindPlayerPed() && WiiPadPointerAimActive())
+#endif
+		)
 	{
 		CPed *shooterPed = (CPed *)shooter;
 		if ( shooterPed->m_pedIK.m_flags & CPedIK::GUN_POINTED_SUCCESSFULLY )
@@ -978,7 +985,11 @@ CWeapon::FireInstantHit(CEntity *shooter, CVector *fireSource)
 			CPlayerPed* shooterPed = (CPlayerPed*)shooter;
 			Find3rdPersonCamTargetVectorFromCachedVectors(info->m_fRange, *fireSource, source, target, shooterPed->m_cachedCamSource, shooterPed->m_cachedCamFront, shooterPed->m_cachedCamUp);
 
-			if ((shooterPed->m_pedIK.m_flags & CPedIK::GUN_POINTED_SUCCESSFULLY) == 0) {
+			if ((shooterPed->m_pedIK.m_flags & CPedIK::GUN_POINTED_SUCCESSFULLY) == 0
+#ifdef NINTENDO_WII
+				&& !WiiPadPointerAimActive()
+#endif
+				) {
 				target.x = info->m_fRange;
 				target.y = 0.0f;
 				target.z = 0.0f;
@@ -1760,10 +1771,18 @@ CWeapon::FireShotgun(CEntity *shooter, CVector *fireSource)
 				Left = CrossProduct(TheCamera.Cams[TheCamera.ActiveCam].Front, TheCamera.Cams[TheCamera.ActiveCam].Up);
 			}
 
+			CVector aimDir = target - source;
+			aimDir.Normalise();
+			Left = CrossProduct(aimDir, TheCamera.Cams[TheCamera.ActiveCam].Up);
+			if (Left.MagnitudeSqr() > 0.0001f)
+				Left.Normalise();
+			else
+				Left = CrossProduct(TheCamera.Cams[TheCamera.ActiveCam].Front, TheCamera.Cams[TheCamera.ActiveCam].Up);
+
 			float f = (i - (shootsAtOnce / 2)) * angleBetweenTwoShot;
-			target  = f * Left + target - source;
-			target *= info->m_fRange;
-			target += source;
+			target = aimDir + Tan(f) * Left;
+			target.Normalise();
+			target = source + target * info->m_fRange;
 			CWorld::bIncludeCarTyres = true;
 			CWorld::bIncludeBikers = true;
 			CWorld::bIncludeDeadPeds = true;

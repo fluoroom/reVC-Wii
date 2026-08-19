@@ -34,7 +34,7 @@ Aim by pointing target with Wiimote.
 | D-pad up | L1 (radio / recenter) | L1 |
 | 1 | Duck | Mounted gun (when not leaning out) |
 | 2 | — | Exit |
-| 1 + 2 | Apply `cheats-ingame.txt` | same (also from pause) |
+| 1 + 2 | Cheat picker (pauses) | same |
 
 Menus: A confirms, B goes back, even if you paused from a vehicle. 
 
@@ -49,9 +49,9 @@ GameCube and Classic Controller mappings are unchanged.
 PC Vice City words, one per line, `#` comments ignored. Files sit next to `boot.dol`:
 
 - `apps/reVC/cheats.txt` — once, when Tommy exists (new game or load)
-- `apps/reVC/cheats-ingame.txt` — each time you press Wiimote **1+2** (in-game or pause)
+- Wiimote **1+2** opens a cheat picker (game paused). **A** applies the highlighted trick and stays open; **B** or **1+2** closes and resumes. D-pad scrolls. Does not open over the pause menu or a cutscene.
 
-Templates are in `gamefiles/`. Example words: `thugstools`, `aspirine`, `panzer`, `leavemealone`.
+Startup template is `gamefiles/cheats.txt`. Example words: `thugstools`, `aspirine`, `panzer`, `leavemealone`.
 
 ### Display
 
