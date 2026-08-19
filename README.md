@@ -18,6 +18,7 @@ Real Wii: `./scripts/wii-release`, then copy `sd/apps/reVC/` to a FAT32 SD card 
 Default control method is Classic. The follow camera is Z + nunchuk stick, not the pointer. HOME quits (unsaved progress is discarded). Plus pauses.
 
 Swing the remote to punch when a melee weapon is equipped; B still punches too.
+
 Aim by pointing target with Wiimote.
 
 | Input | On foot | In car |
