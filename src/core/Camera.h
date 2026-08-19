@@ -622,6 +622,7 @@ public:
 	void SetNewPlayerWeaponMode(int16 mode, int16 minZoom, int16 maxZoom);
 	void ClearPlayerWeaponMode(void);
 	void UpdateAimingCoors(CVector const &coors);
+	static void Get3rdPersonAimTanOffset(float &tanX, float &tanY);
 	bool Find3rdPersonCamTargetVector(float dist, CVector pos, CVector &source, CVector &target);
 	float Find3rdPersonQuickAimPitch(void);
 	bool Using1stPersonWeaponMode(void);

@@ -774,7 +774,16 @@ applyIrRateCamera(const WPADData &data, CMouseControllerState &state, bool allow
 	const float deltaX = s_heldRateX*s_pointerDt;
 	const float deltaY = s_heldRateY*s_pointerDt;
 	state.x = MousePointerStateHelper.bInvertHorizontally ? -deltaX : deltaX;
-	state.y = MousePointerStateHelper.bInvertVertically ? -deltaY : deltaY;
+	// IR Y grows downward, same as the HUD cursor.  Cam.cpp reads
+	// LookUpDown = 4.0f * GetMouseY() with positive Alpha looking up, and
+	// unlike yaw (LookLeftRight = -3.0f * MouseX) pitch has no minus of
+	// its own -- on PC that minus is Invert Mouse, whose default is true
+	// (the menu shows OFF).  A pointer is not a relative mouse: pointing
+	// at the top of the screen has to look up whether or not that flag is
+	// set, which is the 3rd-person IR mapping too.  Negate here and leave
+	// the flag alone so a scope cannot end up with inverted pitch and
+	// correct yaw.
+	state.y = -deltaY;
 }
 
 } // namespace

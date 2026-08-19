@@ -3980,6 +3980,37 @@ CCamera::UpdateAimingCoors(CVector const &coors)
 	m_cvecAimingTargetCoors = coors;
 }
 
+void
+CCamera::Get3rdPersonAimTanOffset(float &tanX, float &tanY)
+{
+#ifdef NINTENDO_WII
+	// The original 1.8*0.5*FOV*aspect angles were for a PC mouse crosshair
+	// that sits near the centre (defaults 0.53, 0.4).  The Wii pointer writes
+	// CHair as a full-screen 0-1 position, and that formula at the edge of a
+	// 16:9 HOR+ view is about 1.5-2x the real half-FOV, worse the further off
+	// centre you aim -- which is the miss against the HUD sprite.
+	//
+	// Map through the same view window CameraSize gave the RW camera so a
+	// point on screen is the world ray through that pixel.
+	const float ndcX = (m_f3rdPersonCHairMultX - 0.5f) * 2.0f;
+	const float ndcY = (0.5f - m_f3rdPersonCHairMultY) * 2.0f;
+	RwV2d vw;
+	if(TheCamera.m_pRwCamera)
+		vw = *RwCameraGetViewWindow(TheCamera.m_pRwCamera);
+	else{
+		vw.x = SCREEN_VIEWWINDOW;
+		vw.y = SCREEN_VIEWWINDOW / SCREEN_ASPECT_RATIO;
+	}
+	tanX = ndcX * vw.x;
+	tanY = ndcY * vw.y;
+#else
+	float angleX = DEGTORAD((m_f3rdPersonCHairMultX-0.5f) * 1.8f * 0.5f * TheCamera.Cams[TheCamera.ActiveCam].FOV * CDraw::GetAspectRatio());
+	float angleY = DEGTORAD((0.5f-m_f3rdPersonCHairMultY) * 1.8f * 0.5f * TheCamera.Cams[TheCamera.ActiveCam].FOV);
+	tanX = Tan(angleX);
+	tanY = Tan(angleY);
+#endif
+}
+
 bool
 CCamera::Find3rdPersonCamTargetVector(float dist, CVector pos, CVector &source, CVector &target)
 {
@@ -3988,12 +4019,12 @@ CCamera::Find3rdPersonCamTargetVector(float dist, CVector pos, CVector &source, 
 		target = dist*Cams[ActiveCam].CamTargetEntity->GetForward() + source;
 		return false;
 	}else{
-		float angleX = DEGTORAD((m_f3rdPersonCHairMultX-0.5f) * 1.8f * 0.5f * Cams[ActiveCam].FOV * CDraw::GetAspectRatio());
-		float angleY = DEGTORAD((0.5f-m_f3rdPersonCHairMultY) * 1.8f * 0.5f * Cams[ActiveCam].FOV);
+		float tanX, tanY;
+		Get3rdPersonAimTanOffset(tanX, tanY);
 		source = Cams[ActiveCam].Source;
 		target = Cams[ActiveCam].Front;
-		target += Cams[ActiveCam].Up * Tan(angleY);
-		target += CrossProduct(Cams[ActiveCam].Front, Cams[ActiveCam].Up) * Tan(angleX);
+		target += Cams[ActiveCam].Up * tanY;
+		target += CrossProduct(Cams[ActiveCam].Front, Cams[ActiveCam].Up) * tanX;
 		target.Normalise();
 		source += DotProduct(pos - source, target)*target;
 		target = dist*target + source;
@@ -4007,8 +4038,10 @@ CCamera::Find3rdPersonQuickAimPitch(void)
 	float clampedFrontZ = Clamp(Cams[ActiveCam].Front.z, -1.0f, 1.0f);
 
 	float rot = Asin(clampedFrontZ);
+	float tanX, tanY;
+	Get3rdPersonAimTanOffset(tanX, tanY);
 
-	return -(DEGTORAD(((0.5f - m_f3rdPersonCHairMultY) * 1.8f * 0.5f * Cams[ActiveCam].FOV)) + rot);
+	return -(Atan(tanY) + rot);
 }
 
 bool

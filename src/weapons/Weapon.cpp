@@ -61,12 +61,12 @@ Find3rdPersonCamTargetVectorFromCachedVectors(float dist, CVector pos, CVector& 
 		target = dist * FindPlayerPed()->GetForward() + source;
 		return false;
 	} else {
-		float angleX = DEGTORAD((CCamera::m_f3rdPersonCHairMultX - 0.5f) * 1.8f * 0.5f * TheCamera.Cams[TheCamera.ActiveCam].FOV * CDraw::GetAspectRatio());
-		float angleY = DEGTORAD((0.5f - CCamera::m_f3rdPersonCHairMultY) * 1.8f * 0.5f * TheCamera.Cams[TheCamera.ActiveCam].FOV);
+		float tanX, tanY;
+		CCamera::Get3rdPersonAimTanOffset(tanX, tanY);
 		source = camSource;
 		target = camFront;
-		target += camUp * Tan(angleY);
-		target += CrossProduct(camFront, camUp) * Tan(angleX);
+		target += camUp * tanY;
+		target += CrossProduct(camFront, camUp) * tanX;
 		target.Normalise();
 		source += DotProduct(pos - source, target) * target;
 		target = dist * target + source;
