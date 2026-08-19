@@ -9,11 +9,15 @@ Playable Wii changes on top of [OptiJuegos/reVC-Wii](https://github.com/OptiJueg
 
 Homebrew Channel PNG banner and meta.xml
 
-Copy PC Vice City data into `sd/apps/reVC/`. Dolphin: `./scripts/wii-run` (prints `this tree:` so you know which clone you launched). Real Wii: `./scripts/wii-release`, then copy `sd/apps/reVC/` to a FAT32 SD card as `apps/reVC/` (include `boot.dol`, `cheats.txt`, and `cheats-ingame.txt`).
+Copy PC Vice City data into `sd/apps/reVC/`.
+Dolphin: `./scripts/wii-run` (prints `this tree:` so you know which clone you launched).
+Real Wii: `./scripts/wii-release`, then copy `sd/apps/reVC/` to a FAT32 SD card / USB as `apps/reVC/` (homebrew folder).
 
 ### Wiimote + Nunchuk
 
 Default control method is Classic. The follow camera is Z + nunchuk stick, not the pointer. HOME quits (unsaved progress is discarded). Plus pauses.
+
+Swing the remote to punch when a melee weapon is equipped; B still punches too.
 
 | Input | On foot | In car |
 | --- | --- | --- |
@@ -30,7 +34,7 @@ Default control method is Classic. The follow camera is Z + nunchuk stick, not t
 | 2 | — | Exit |
 | 1 + 2 | Apply `cheats-ingame.txt` | same (also from pause) |
 
-Menus: A confirms, B goes back, even if you paused from a vehicle. Swing the remote to punch when a melee weapon is equipped; B still punches too.
+Menus: A confirms, B goes back, even if you paused from a vehicle. 
 
 **Pointer** is only for guns. Point while holding Minus (lock-on) or B (hip-fire) and the lock/crosshair follows whoever is under the IR. Lean out with D-pad L/R and hold B to drive-by-aim the same way. Sniper / rocket first-person uses the pointer as a rate look. It does not orbit the follow camera or steer.
 
