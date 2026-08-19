@@ -162,6 +162,10 @@ float s_heldRateX;
 float s_heldRateY;
 float s_heldSeconds;
 bool s_pointerAimActive;
+bool s_wasPointerAiming;
+bool s_haveCHair;
+float s_lastCHairX = 0.53f;
+float s_lastCHairY = 0.4f;
 
 // Resting remote is about 1g.  The hardware clips near +/-3g, so a 2.6g peak
 // gate never fires on a normal jab: the extra acceleration is only about one g
@@ -715,17 +719,46 @@ writeIrToCHair(const WPADData &data)
 
 	float x = data.ir.x / width;
 	float y = data.ir.y / height;
-	if(x < 0.0f)
-		x = 0.0f;
-	else if(x > 1.0f)
-		x = 1.0f;
-	if(y < 0.0f)
-		y = 0.0f;
-	else if(y > 1.0f)
-		y = 1.0f;
 
+	// The sensor reports 0 or 1 (or a teleport into a corner) the moment the
+	// pointer reaches the edge of its field.  Clamping that onto the frustum
+	// edge is what makes border aim twitch, and a 0,0 sample is what slams
+	// QuickAimPitch to the sky.
+	constexpr float kInset = 0.05f;
+	constexpr float kJump = 0.35f;
+	if(s_haveCHair){
+		const float dx = x - s_lastCHairX;
+		const float dy = y - s_lastCHairY;
+		const bool edge = x < 0.08f || x > 0.92f || y < 0.08f || y > 0.92f;
+		if(edge && (dx*dx + dy*dy) > kJump*kJump){
+			x = s_lastCHairX;
+			y = s_lastCHairY;
+		}
+	}
+	if(x < kInset)
+		x = kInset;
+	else if(x > 1.0f - kInset)
+		x = 1.0f - kInset;
+	if(y < kInset)
+		y = kInset;
+	else if(y > 1.0f - kInset)
+		y = 1.0f - kInset;
+
+	s_lastCHairX = x;
+	s_lastCHairY = y;
+	s_haveCHair = true;
 	TheCamera.m_f3rdPersonCHairMultX = x;
 	TheCamera.m_f3rdPersonCHairMultY = y;
+}
+
+void
+restoreDefaultCHair(void)
+{
+	s_haveCHair = false;
+	s_lastCHairX = 0.53f;
+	s_lastCHairY = 0.4f;
+	TheCamera.m_f3rdPersonCHairMultX = 0.53f;
+	TheCamera.m_f3rdPersonCHairMultY = 0.4f;
 }
 
 bool
@@ -908,10 +941,16 @@ WiiPadCaptureMouse(CMouseControllerState &state)
 		// replaying a turn rate -- that hold is what made the follow camera
 		// spin when the remote left the sensor bar.
 		s_pointerAimActive = true;
+		s_wasPointerAiming = true;
 		if(tracked)
 			writeIrToCHair(*data);
 		stopPointerHold();
 		return;
+	}
+
+	if(s_wasPointerAiming){
+		restoreDefaultCHair();
+		s_wasPointerAiming = false;
 	}
 
 	if(nunchuk && !scopeLook){

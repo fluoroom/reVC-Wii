@@ -547,6 +547,25 @@ CCamera::Process(void)
 		CamUp.Normalise();
 	}
 
+	// A follow cam looking almost straight up/down makes Front parallel to
+	// Up.  The cross product then vanishes and the RW frame that GX inverts
+	// for the view matrix goes degenerate -- the world flattens into a 2D
+	// vanishing point until something rebuilds the camera (pause does).
+	{
+		CVector right = CrossProduct(CamFront, CamUp);
+		if(right.MagnitudeSqr() < 1.0e-6f){
+			CVector worldUp(0.0f, 0.0f, 1.0f);
+			if(Abs(DotProduct(CamFront, worldUp)) > 0.99f)
+				worldUp = CVector(0.0f, 1.0f, 0.0f);
+			CamUp = worldUp;
+			right = CrossProduct(CamFront, CamUp);
+		}
+		right.Normalise();
+		CamFront.Normalise();
+		CamUp = CrossProduct(right, CamFront);
+		CamUp.Normalise();
+	}
+
 	GetMatrix().GetRight() = CrossProduct(CamUp, CamFront);	// actually Left
 	GetMatrix().GetForward() = CamFront;
 	GetMatrix().GetUp() = CamUp;
@@ -3990,19 +4009,26 @@ CCamera::Get3rdPersonAimTanOffset(float &tanX, float &tanY)
 	// 16:9 HOR+ view is about 1.5-2x the real half-FOV, worse the further off
 	// centre you aim -- which is the miss against the HUD sprite.
 	//
-	// Map through the same view window CameraSize gave the RW camera so a
-	// point on screen is the world ray through that pixel.
-	const float ndcX = (m_f3rdPersonCHairMultX - 0.5f) * 2.0f;
-	const float ndcY = (0.5f - m_f3rdPersonCHairMultY) * 2.0f;
-	RwV2d vw;
-	if(TheCamera.m_pRwCamera)
-		vw = *RwCameraGetViewWindow(TheCamera.m_pRwCamera);
-	else{
-		vw.x = SCREEN_VIEWWINDOW;
-		vw.y = SCREEN_VIEWWINDOW / SCREEN_ASPECT_RATIO;
-	}
-	tanX = ndcX * vw.x;
-	tanY = ndcY * vw.y;
+	// Use the same half-FOV CameraSize feeds the RW camera, from the live
+	// scaled FOV rather than the RW view window: that window is one frame
+	// behind on a zoom and is what goes infinite if FOV/aspect ever glitch.
+	float x = m_f3rdPersonCHairMultX;
+	float y = m_f3rdPersonCHairMultY;
+	if(x < 0.0f) x = 0.0f;
+	else if(x > 1.0f) x = 1.0f;
+	if(y < 0.0f) y = 0.0f;
+	else if(y > 1.0f) y = 1.0f;
+	const float ndcX = (x - 0.5f) * 2.0f;
+	const float ndcY = (0.5f - y) * 2.0f;
+	float fov = CDraw::GetScaledFOV();
+	if(fov < 10.0f) fov = 10.0f;
+	else if(fov > 160.0f) fov = 160.0f;
+	float aspect = CDraw::GetAspectRatio();
+	if(aspect < 0.5f) aspect = 4.0f/3.0f;
+	else if(aspect > 3.0f) aspect = 16.0f/9.0f;
+	const float halfWidth = Tan(DEGTORAD(fov * 0.5f));
+	tanX = ndcX * halfWidth;
+	tanY = ndcY * (halfWidth / aspect);
 #else
 	float angleX = DEGTORAD((m_f3rdPersonCHairMultX-0.5f) * 1.8f * 0.5f * TheCamera.Cams[TheCamera.ActiveCam].FOV * CDraw::GetAspectRatio());
 	float angleY = DEGTORAD((0.5f-m_f3rdPersonCHairMultY) * 1.8f * 0.5f * TheCamera.Cams[TheCamera.ActiveCam].FOV);
@@ -4010,6 +4036,16 @@ CCamera::Get3rdPersonAimTanOffset(float &tanX, float &tanY)
 	tanY = Tan(angleY);
 #endif
 }
+
+#ifdef NINTENDO_WII
+float
+CCamera::Get3rdPersonAimHeadingOffset(void)
+{
+	float tanX, tanY;
+	Get3rdPersonAimTanOffset(tanX, tanY);
+	return Atan(tanX);
+}
+#endif
 
 bool
 CCamera::Find3rdPersonCamTargetVector(float dist, CVector pos, CVector &source, CVector &target)
@@ -4041,7 +4077,14 @@ CCamera::Find3rdPersonQuickAimPitch(void)
 	float tanX, tanY;
 	Get3rdPersonAimTanOffset(tanX, tanY);
 
-	return -(Atan(tanY) + rot);
+	float pitch = -(Atan(tanY) + rot);
+#ifdef NINTENDO_WII
+	if(pitch > DEGTORAD(70.0f))
+		pitch = DEGTORAD(70.0f);
+	else if(pitch < -DEGTORAD(70.0f))
+		pitch = -DEGTORAD(70.0f);
+#endif
+	return pitch;
 }
 
 bool

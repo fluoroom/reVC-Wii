@@ -103,11 +103,19 @@ CDraw::ConvertFOV(float hfov)
 void
 CDraw::SetFOV(float fov)
 {
+	if(fov < 5.0f)
+		fov = 5.0f;
+	else if(fov > 170.0f)
+		fov = 170.0f;
 #ifdef ASPECT_RATIO_SCALE
 	if (!CCutsceneMgr::IsRunning())
 		ms_fScaledFOV = ConvertFOV(fov);
 	else
 		ms_fScaledFOV = fov;
+	if(ms_fScaledFOV < 5.0f)
+		ms_fScaledFOV = 5.0f;
+	else if(ms_fScaledFOV > 170.0f)
+		ms_fScaledFOV = 170.0f;
 #endif
 	ms_fFOV = fov;
 }

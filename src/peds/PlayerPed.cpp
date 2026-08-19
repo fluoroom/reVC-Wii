@@ -1468,8 +1468,14 @@ CPlayerPed::ProcessPlayerWeapon(CPad *padUsed)
 				if (CAN_AIM_WITH_ARM) {
 					pointedGun = 2;
 					m_bFreeAimActive = true;
-					SetLookFlag(limitedCam, true, true);
-					SetAimFlag(limitedCam);
+					float aimHeading = limitedCam;
+#ifdef NINTENDO_WII
+					if(WiiPadPointerAimActive())
+						aimHeading = CGeneral::LimitRadianAngle(
+							limitedCam + CCamera::Get3rdPersonAimHeadingOffset());
+#endif
+					SetLookFlag(aimHeading, true, true);
+					SetAimFlag(aimHeading);
 					SetLookTimer(INT32_MAX);
 					((CPlayerPed*)this)->m_fFPSMoveHeading = TheCamera.Find3rdPersonQuickAimPitch();
 					if (m_nPedState != PED_ATTACK && m_nPedState != PED_AIM_GUN && m_nPedState != PED_FIGHT) {
@@ -1478,6 +1484,13 @@ CPlayerPed::ProcessPlayerWeapon(CPad *padUsed)
 					}
 				} else {
 					m_fRotationDest = limitedCam;
+#ifdef NINTENDO_WII
+					if(WiiPadPointerAimActive()){
+						m_fRotationDest = CGeneral::LimitRadianAngle(
+							limitedCam + CCamera::Get3rdPersonAimHeadingOffset());
+						((CPlayerPed*)this)->m_fFPSMoveHeading = TheCamera.Find3rdPersonQuickAimPitch();
+					}
+#endif
 					changedHeadingRate = 2;
 					m_headingRate = 12.5f;
 

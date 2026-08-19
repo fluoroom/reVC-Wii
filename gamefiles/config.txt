@@ -9,4 +9,4 @@
 # video=NTSC  force 480
 #
 aspect=16:9
-video=PAL
+video=NTSC

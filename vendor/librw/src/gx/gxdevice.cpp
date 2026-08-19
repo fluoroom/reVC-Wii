@@ -323,9 +323,19 @@ beginUpdate(Camera *camera)
 	view[14] = -inverse.pos.z;
 	view[15] = 1.0f;
 
-	float32 inverseWidth = 1.0f/camera->viewWindow.x;
-	float32 inverseHeight = 1.0f/camera->viewWindow.y;
-	float32 inverseDepth = 1.0f/(camera->farPlane-camera->nearPlane);
+	float32 vwX = camera->viewWindow.x;
+	float32 vwY = camera->viewWindow.y;
+	if(vwX < 0.05f)
+		vwX = 0.7f;
+	if(vwY < 0.05f)
+		vwY = vwX * 0.75f;
+	float32 nearP = camera->nearPlane;
+	float32 farP = camera->farPlane;
+	if(farP <= nearP + 0.05f)
+		farP = nearP + 100.0f;
+	float32 inverseWidth = 1.0f/vwX;
+	float32 inverseHeight = 1.0f/vwY;
+	float32 inverseDepth = 1.0f/(farP-nearP);
 	projection[0] = inverseWidth;
 	projection[1] = 0.0f;
 	projection[2] = 0.0f;
@@ -342,14 +352,14 @@ beginUpdate(Camera *camera)
 	projection[12] = projection[8];
 	projection[13] = projection[9];
 	if(camera->projection == Camera::PERSPECTIVE){
-		projection[10] = -(camera->farPlane+camera->nearPlane)*inverseDepth;
+		projection[10] = -(farP+nearP)*inverseDepth;
 		projection[11] = -1.0f;
-		projection[14] = -2.0f*camera->nearPlane*camera->farPlane*inverseDepth;
+		projection[14] = -2.0f*nearP*farP*inverseDepth;
 		projection[15] = 0.0f;
 	}else{
 		projection[10] = -2.0f*inverseDepth;
 		projection[11] = 0.0f;
-		projection[14] = -(camera->farPlane+camera->nearPlane)*inverseDepth;
+		projection[14] = -(farP+nearP)*inverseDepth;
 		projection[15] = 1.0f;
 	}
 
@@ -357,7 +367,7 @@ beginUpdate(Camera *camera)
 	memcpy(&camera->devProj, projection, sizeof(RawMatrix));
 	setNativeCameraMatrices(view, projection,
 	                        camera->projection == Camera::PERSPECTIVE,
-	                        camera->nearPlane, camera->farPlane);
+	                        nearP, farP);
 	setNativeFogRange(camera->fogPlane, camera->farPlane,
 	                  camera->nearPlane, camera->farPlane,
 	                  camera->projection == Camera::PERSPECTIVE);

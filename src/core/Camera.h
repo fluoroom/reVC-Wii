@@ -623,6 +623,9 @@ public:
 	void ClearPlayerWeaponMode(void);
 	void UpdateAimingCoors(CVector const &coors);
 	static void Get3rdPersonAimTanOffset(float &tanX, float &tanY);
+#ifdef NINTENDO_WII
+	static float Get3rdPersonAimHeadingOffset(void);
+#endif
 	bool Find3rdPersonCamTargetVector(float dist, CVector pos, CVector &source, CVector &target);
 	float Find3rdPersonQuickAimPitch(void);
 	bool Using1stPersonWeaponMode(void);
