@@ -5,7 +5,7 @@
 # 4:3   original 4:3 FOV/HUD, analog line still filled (for 4:3 TVs)
 #
 # video=auto  follow SYSCONF / AnyRegionChanger VIDEO, same as HBC
-# video=PAL   force 50Hz 576 (528 EFB), ignores EURGB60
+# video=PAL   force 50Hz 576, ignores EURGB60
 # video=NTSC  force 480
 #
 aspect=16:9

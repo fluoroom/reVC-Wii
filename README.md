@@ -66,7 +66,7 @@ video=PAL
 
 `video` is PAL 50Hz 576, NTSC 480, or `auto`. `auto` (and a missing line) uses `VIDEO_GetPreferredMode`, the same SYSCONF / `setting.txt` VIDEO HBC uses — including AnyRegion Changer. EURGB60 on a PAL Wii still yields 480 in that path. `video=PAL` forces 576 and ignores EURGB60; that is the per-app switch HBC does not have. Progressive scan still follows SYSCONF plus component cable.
 
-The GX framebuffer is 640×480 on NTSC. PAL 50Hz renders 640×528 (the GX EFB ceiling) and Y-scales into the 576-line analog picture. Width cannot go past 640.
+The GX framebuffer is 640×480. PAL 50Hz Y-scales that into the 576-line analog picture. Width cannot go past 640.
 
 On Wii, brightness and draw distance default to max. Restore defaults in the display menu uses the same maxima.
 

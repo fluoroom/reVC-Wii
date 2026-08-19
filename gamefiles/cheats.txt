@@ -1,14 +1,13 @@
-# Place next to boot.dol as apps/reVC/cheats.txt
-# Applied once when Tommy exists (new game or load).
+# Place this file next to boot.dol as apps/reVC/cheats.txt
 # One PC Vice City cheat word per line. Lines starting with # are ignored.
-# Mid-game cheats go in cheats-ingame.txt (Wiimote 1+2).
+# Applied once Tommy exists (new game or load). Edit this file and restart.
 #
 thugstools
 aspirine
 # professionaltools
 # nuttertools
 # preciousprotection
-# leavemealone
+leavemealone
 # youwonttakemealive
 # panzer
 # bigbang

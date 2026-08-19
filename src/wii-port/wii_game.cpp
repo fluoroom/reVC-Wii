@@ -58,16 +58,11 @@ char s_installDirectory[128] = "sd:/apps/reVC";
 bool s_wideDisplay = true;
 bool s_wideDisplayDefault = true;
 
-// GX EFB is 640x528 RGB+Z.  NTSC and EURGB60 already use the full 480 analog
-// lines.  PAL 50Hz preferred modes render 480 and Y-scale into a 576-line XFB;
-// use the leftover 48 EFB lines so the scale is 528→576 instead of 480→576.
-constexpr u16 kGxEfbHeightMax = 528;
-
-// 640x480 (PAL EFB 528, analog 576) is 4:3 in pixel count.  Preferred mode
-// leaves viWidth at 640 centred in the 720-wide analog line, which is the
-// pillarbox.  Fill almost all of that line for both 16:9 and 4:3: a 4:3 TV
-// then shows the framebuffer edge-to-edge, and 16:9 is the same analog fill
-// with anamorphic FOV packed into those pixels.
+// 640x480 (PAL analog 576) is 4:3 in pixel count.  Preferred mode leaves
+// viWidth at 640 centred in the 720-wide analog line, which is the pillarbox.
+// Fill almost all of that line for both 16:9 and 4:3: a 4:3 TV then shows the
+// framebuffer edge-to-edge, and 16:9 is the same analog fill with anamorphic
+// FOV packed into those pixels.
 //
 // 720 with origin 0 is not safe: SYSCONF screen-position is added on top, the
 // encoder region then exceeds 720, and VIDEO_WaitVSync never returns on a
@@ -89,27 +84,6 @@ applyAnalogFill(void)
 		viWidth = maxWidth;
 	s_renderMode->viWidth = viWidth;
 	s_renderMode->viXOrigin = (u16)((maxWidth - viWidth) / 2);
-}
-
-void
-applyPalEfbHeight(void)
-{
-	if(s_renderMode == nullptr)
-		return;
-	// EURGB60 is PAL hardware running 480i/480p.  Leave it; only 50Hz PAL
-	// has spare analog lines to scale into.
-	if((s_renderMode->viTVMode >> 2) != VI_PAL)
-		return;
-
-	s_renderMode->efbHeight = kGxEfbHeightMax;
-
-	// TVPal576*Scale already XFB/VI at 576.  A native 528-line PAL mode
-	// would letterbox; raise analog height to the PAL line.
-	if(s_renderMode->xfbHeight < VI_MAX_HEIGHT_PAL){
-		s_renderMode->xfbHeight = VI_MAX_HEIGHT_PAL;
-		s_renderMode->viHeight = VI_MAX_HEIGHT_PAL;
-		s_renderMode->viYOrigin = 0;
-	}
 }
 
 GXRModeObj *
@@ -141,8 +115,8 @@ setupGxCopy(void)
 	GX_SetScissor(0, 0, s_renderMode->fbWidth, s_renderMode->efbHeight);
 	GX_SetDispCopySrc(0, 0, s_renderMode->fbWidth, s_renderMode->efbHeight);
 	GX_SetDispCopyDst(s_renderMode->fbWidth, s_renderMode->xfbHeight);
-	GX_SetDispCopyYScale(GX_GetYScaleFactor(s_renderMode->efbHeight,
-	                                       s_renderMode->xfbHeight));
+	GX_SetDispCopyYScale((f32)s_renderMode->xfbHeight /
+	                     (f32)s_renderMode->efbHeight);
 	GX_SetCopyFilter(s_renderMode->aa, s_renderMode->sample_pattern,
 	                 GX_TRUE, s_renderMode->vfilter);
 	GX_SetFieldMode(s_renderMode->field_rendering,
@@ -172,7 +146,6 @@ applyConfigVideoMode(void)
 
 	s_rmodeObj = *forcedVideoMode(want);
 	applyAnalogFill();
-	applyPalEfbHeight();
 	for(void *frameBuffer : s_frameBuffers){
 		if(frameBuffer != nullptr)
 			VIDEO_ClearFrameBuffer(s_renderMode, frameBuffer, COLOR_BLACK);
@@ -303,7 +276,6 @@ initializeVideo()
 	s_renderMode = &s_rmodeObj;
 
 	applyAnalogFill();
-	applyPalEfbHeight();
 	s_wideDisplay = true;
 
 	for(void *&frameBuffer : s_frameBuffers){
