@@ -15,6 +15,7 @@
 #include "PlayerInfo.h"
 #include "Timer.h"
 #include "WiiCheats.h"
+#include "WiiConfig.h"
 #include "WiiPad.h"
 #include "WiiTrace.h"
 #include "platform.h"
@@ -145,6 +146,19 @@ constexpr float kPointerPitchScale = 0.32f;
 // any turn a player is actually in the middle of.
 constexpr float kPointerHoldSeconds = 2.0f;
 
+// Wheel steering.  The remote lies across the hands the way a Wii Wheel holds
+// it: buttons facing the player, 2 under the right thumb.  Gravity along the
+// long axis is then the steering angle.  Full lock is short of 90 degrees so
+// a small turn of the wrists is a full turn of the car, which is the Mario
+// Kart feel.  The deadzone covers the shake of holding still.
+constexpr float kWheelDeadzoneDeg = 10.0f;
+constexpr float kWheelFullLockDeg = 50.0f;
+// |g.z| is about 1 with the buttons toward the ceiling (the pointer grip) and
+// about 0 with the buttons facing the player (the wheel).  The two thresholds
+// are split so a reading that sits on the boundary does not flicker modes.
+constexpr float kWheelPoseEnterZ = 0.50f;
+constexpr float kWheelPoseExitZ = 0.80f;
+
 // Frame time clamp for the rate above.  A dt of zero (two polls inside one
 // timebase tick) would freeze the camera and a huge one -- the first frame after
 // a streaming stall -- would fling it, so the rate is only integrated over
@@ -191,6 +205,9 @@ bool s_punchHaveLastMag;
 bool s_punchArmed = true;
 uword s_punchLastRawX, s_punchLastRawY, s_punchLastRawZ;
 bool s_punchHaveLastRaw;
+
+bool s_wheelPose;
+float s_wheelFiltered;
 
 int16
 toAxis(float value, float sensitivity)
@@ -581,11 +598,108 @@ captureClassic(const WPADData &data, CControllerState &state,
 	addStick(x, -y, settings.rightDeadzone, sticks.rightX, sticks.rightY);
 }
 
-// The Wiimote itself, and the Nunchuk when one is attached.  Only the forward
-// grip is supported -- the remote pointed at the screen, D-pad under the thumb,
-// B trigger under the index finger -- because that is the grip the pointer needs.
-// Held sideways the D-pad would be rotated a quarter turn and the pointer
-// unusable, which is a different mapping rather than the same one with a caveat.
+// -1..1 stick, already shaped so the vehicle's own square curve comes back
+// out as a linear wheel.  Positive g.y means the IR end is up; that end is in
+// the right hand, so it is a left turn, and left is a negative stick.
+float
+wheelDeflection(const gforce_t &g)
+{
+	const float horiz = std::sqrt(g.x*g.x + g.z*g.z);
+	const float degrees = std::atan2(g.y, horiz)/kDegreesToRadians;
+	const float magnitude = std::fabs(degrees);
+	if(magnitude <= kWheelDeadzoneDeg)
+		return 0.0f;
+
+	float t = (magnitude - kWheelDeadzoneDeg)/
+		(kWheelFullLockDeg - kWheelDeadzoneDeg);
+	if(t > 1.0f)
+		t = 1.0f;
+	const float shaped = std::sqrt(t);
+	return degrees > 0.0f ? -shaped : shaped;
+}
+
+void
+clearWheelPose(void)
+{
+	s_wheelPose = false;
+	s_wheelFiltered = 0.0f;
+}
+
+// Sideways, in a vehicle, with the option on.  A dropped packet or a knock
+// that shoves the accelerometer off 1g keeps the last answer: letting go of
+// the mode for one frame would snap the wheel back to the D-pad.
+bool
+updateWheelPose(const WPADData &data)
+{
+	if(!WiiConfigWheelDrive() || FrontEndMenuManager.m_bMenuActive ||
+		FindPlayerVehicle() == nil){
+		clearWheelPose();
+		return false;
+	}
+	if(data.err != WPAD_ERR_NONE || (data.data_present & WPAD_DATA_ACCEL) == 0)
+		return s_wheelPose;
+
+	const float mag = gforceMagnitude(data.gforce);
+	if(mag < 0.40f || mag > 2.50f)
+		return s_wheelPose;
+
+	const bool was = s_wheelPose;
+	const float z = std::fabs(data.gforce.z);
+	if(was)
+		s_wheelPose = z < kWheelPoseExitZ;
+	else
+		s_wheelPose = z < kWheelPoseEnterZ;
+	if(was && !s_wheelPose)
+		clearWheelPose();
+	if(!was && s_wheelPose)
+		WiiTraceReport("WII pad: wheel steer\n");
+	return s_wheelPose;
+}
+
+// Buttons follow the wheel, not the pointer grip.  2 and 1 are under the
+// right thumb, B is the trigger the plastic wheel presses, A is the face
+// button.  D-pad arrows are the ones printed on the remote: Up points at 1
+// and 2.  None of them are written into DPad*, because that axis is also
+// steering and would slam the car to full lock.
+void
+captureWheel(const WPADData &data, CControllerState &state, StickAccumulator &sticks)
+{
+	const u32 buttons = data.btns_h;
+
+	setButton(state.Cross, buttons & WPAD_BUTTON_2);
+	setButton(state.Square, buttons & WPAD_BUTTON_1);
+	setButton(state.RightShoulder1, buttons & WPAD_BUTTON_B);
+	setButton(state.Circle, buttons & WPAD_BUTTON_A);
+	setButton(state.Triangle, buttons & WPAD_BUTTON_UP);
+	setButton(state.Select, buttons & WPAD_BUTTON_MINUS);
+	setButton(state.Start, buttons & WPAD_BUTTON_PLUS);
+	if(buttons & WPAD_BUTTON_LEFT)
+		setButton(state.LeftShoulder2, true);
+	if(buttons & WPAD_BUTTON_RIGHT)
+		setButton(state.RightShoulder2, true);
+	if(buttons & WPAD_BUTTON_DOWN){
+		setButton(state.LeftShoulder2, true);
+		setButton(state.RightShoulder2, true);
+	}
+
+	float raw = s_wheelFiltered;
+	const float mag = gforceMagnitude(data.gforce);
+	if(mag >= 0.40f && mag <= 2.50f)
+		raw = wheelDeflection(data.gforce);
+	float alpha = s_pointerDt/0.05f;
+	if(!(alpha > 0.0f))
+		alpha = 1.0f;
+	if(alpha > 1.0f)
+		alpha = 1.0f;
+	s_wheelFiltered += (raw - s_wheelFiltered)*alpha;
+	sticks.leftX += s_wheelFiltered;
+}
+
+// The Wiimote itself, and the Nunchuk when one is attached.  The forward grip
+// is the one the pointer needs: remote pointed at the screen, D-pad under the
+// thumb, B under the index finger.  Held sideways that grip's D-pad is turned
+// a quarter turn and the pointer is useless, so that pose is a separate
+// mapping (captureWheel) and only while the wheel option is on.
 //
 // GTA still reads PS2 buttons.  Everyday actions sit on A/B/C/Z/stick/D-pad;
 // 1 and 2 are at the speaker end and only get rare ones.  Z is look, not a
@@ -602,6 +716,11 @@ captureWiimote(const WPADData &data, u32 expansion, CControllerState &state,
 	const bool inVehicle = !menu && FindPlayerVehicle() != nil;
 	const bool lookingOut = (buttons & (WPAD_BUTTON_LEFT | WPAD_BUTTON_RIGHT)) != 0;
 	const bool bHeld = (buttons & WPAD_BUTTON_B) != 0;
+
+	if(updateWheelPose(data)){
+		captureWheel(data, state, sticks);
+		return;
+	}
 
 	// Pause menus can still have FindPlayerVehicle() set.  Confirm/back stay on
 	// A/B regardless of whether the player opened the menu from a car.
@@ -903,6 +1022,8 @@ WiiPadApplyControlDefaults(void)
 	ControlsManager.m_lStickDeadzone = 0.12f;
 	ControlsManager.m_lStickSensX = 1.15f;
 	ControlsManager.m_lStickSensY = 1.15f;
+	// LoadINISettings runs before this and can leave a value outside 0/1.
+	WiiConfigClampWheelDrive();
 }
 
 void
@@ -991,6 +1112,9 @@ WiiPadCaptureMouse(CMouseControllerState &state)
 	// Same exclusivity as WiiPadCapture: any GameCube pad silences IR so a
 	// live remote cannot steer the camera while driving with GC.
 	if(s_connectedGameCubePads != 0){
+		// The pad owns the car.  A remote lying on its side must not keep the
+		// wheel latched, or 1+2 stays swallowed after the player put it down.
+		clearWheelPose();
 		stopPointerHold();
 		return;
 	}
@@ -1033,6 +1157,17 @@ WiiPadCaptureMouse(CMouseControllerState &state)
 		return;
 	}
 
+	// The wheel is not a pointer.  Leaving the rate camera running here spins
+	// the view whenever the sideways remote happens to see the sensor bar.
+	// A Classic Controller lives on the same remote; its sticks already steer,
+	// and the remote's attitude must not take the wheel over the top of them.
+	if(expansion == WPAD_EXP_CLASSIC)
+		clearWheelPose();
+	else if(updateWheelPose(*data)){
+		stopPointerHold();
+		return;
+	}
+
 	const bool scopeLook = TheCamera.Using1stPersonWeaponMode();
 
 	if(nunchuk && !scopeLook && pointerWantsGunAim(*data)){
@@ -1067,6 +1202,12 @@ bool
 WiiPadPointerAimActive(void)
 {
 	return s_pointerAimActive;
+}
+
+bool
+WiiPadWheelDriving(void)
+{
+	return s_wheelPose;
 }
 
 void
@@ -1162,6 +1303,11 @@ WiiPadShowControllerSplash(void *xfb, GXRModeObj *rmode, int holdSeconds)
 		std::printf("  Horn: D-Pad Up\n");
 	}else if(pad == WII_PAD_WIIMOTE_NUNCHUK){
 		std::printf("  Horn: Nunchuk C\n");
+	}
+	if(WiiConfigWheelDrive() &&
+		(pad == WII_PAD_WIIMOTE || pad == WII_PAD_WIIMOTE_NUNCHUK)){
+		std::printf("  Driving wheel: ON (Options - Controller)\n");
+		std::printf("  Hold sideways, 2 on the right.  2 gas, 1 brake.\n");
 	}
 	std::printf("\n  GameCube pad has priority if plugged in.\n");
 	std::printf("  Starting...\n");

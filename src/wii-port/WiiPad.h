@@ -55,6 +55,10 @@ void WiiPadCaptureMouse(CMouseControllerState &state);
 // is set, without turning on follow-cam mouse orbit.
 bool WiiPadPointerAimActive(void);
 
+// True while the wheel option is on and the remote is being held sideways in a
+// vehicle, so 1+2 is gas and brake rather than the cheat chord.
+bool WiiPadWheelDriving(void);
+
 // Drives the rumble motors from the shake the game asked for, and spends down
 // its remaining duration.  No other backend on this platform does either.
 void WiiPadUpdateRumble(void);

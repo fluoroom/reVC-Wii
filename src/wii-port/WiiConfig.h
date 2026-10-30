@@ -15,4 +15,11 @@ enum WiiConfigVideo {
 
 WiiConfigVideo WiiConfigWantVideo(void);
 
+// Driving with the remote held sideways, like a Wii Wheel.  config.txt
+// "wheel=on" seeds this at boot.  The controller menu writes the same byte
+// and reVC.ini remembers it after that, which then wins over config.txt.
+bool WiiConfigWheelDrive(void);
+signed char *WiiConfigWheelDriveSlot(void);
+void WiiConfigClampWheelDrive(void);
+
 #endif

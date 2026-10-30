@@ -144,6 +144,16 @@ CText::Unload(void)
 wchar*
 CText::Get(const char *key)
 {
+#ifdef NINTENDO_WII
+	// No GXT line for this.  A missing key is an empty string in MASTER, so
+	// the controller menu would show a blank row.
+	if(key != nil && strcmp(key, "WI_WHEL") == 0){
+		static wchar label[] = {
+			'W', 'I', 'I', ' ', 'W', 'H', 'E', 'E', 'L', 0
+		};
+		return label;
+	}
+#endif
 	uint8 result = false;
 #if defined (FIX_BUGS) || defined(FIX_BUGS_64)
 	wchar *outstr = keyArray.Search(key, data.chars, &result);

@@ -11,6 +11,7 @@ namespace
 
 bool s_wantWide = true;
 WiiConfigVideo s_wantVideo = WiiConfigVideoAuto;
+signed char s_wheelDrive = 0;
 
 void
 trim(char *&start, char *&end)
@@ -50,6 +51,27 @@ parseWideValue(const char *value, bool &wide)
 		std::strcmp(lowered, "standard") == 0 ||
 		std::strcmp(lowered, "fullscreen") == 0)
 		wide = false;
+	else
+		return false;
+	return true;
+}
+
+bool
+parseOnOff(const char *value, bool &on)
+{
+	char lowered[32];
+	lowerCopy(lowered, sizeof(lowered), value);
+
+	if(std::strcmp(lowered, "on") == 0 ||
+	   std::strcmp(lowered, "1") == 0 ||
+	   std::strcmp(lowered, "true") == 0 ||
+	   std::strcmp(lowered, "yes") == 0)
+		on = true;
+	else if(std::strcmp(lowered, "off") == 0 ||
+		std::strcmp(lowered, "0") == 0 ||
+		std::strcmp(lowered, "false") == 0 ||
+		std::strcmp(lowered, "no") == 0)
+		on = false;
 	else
 		return false;
 	return true;
@@ -137,11 +159,12 @@ WiiConfigLoad(void)
 {
 	s_wantWide = true;
 	s_wantVideo = WiiConfigVideoAuto;
+	s_wheelDrive = 0;
 
 	char opened[192];
 	FILE *file = openConfigFile(opened, sizeof(opened));
 	if(file == nullptr){
-		WiiTraceReport("WII config: no config.txt, aspect=16:9 video=auto\n");
+		WiiTraceReport("WII config: no config.txt, aspect=16:9 video=auto wheel=off\n");
 		return;
 	}
 	WiiTraceReport("WII config: reading %s\n", opened);
@@ -198,6 +221,16 @@ WiiConfigLoad(void)
 			}
 			s_wantVideo = video;
 			WiiTraceReport("WII config: video=%s\n", videoName(video));
+			continue;
+		}
+		if(std::strcmp(key, "wheel") == 0){
+			bool on;
+			if(!parseOnOff(value, on)){
+				WiiTraceReport("WII config: ignored wheel=%s\n", value);
+				continue;
+			}
+			s_wheelDrive = on ? 1 : 0;
+			WiiTraceReport("WII config: wheel=%s\n", on ? "on" : "off");
 		}
 	}
 	std::fclose(file);
@@ -213,4 +246,23 @@ WiiConfigVideo
 WiiConfigWantVideo(void)
 {
 	return s_wantVideo;
+}
+
+bool
+WiiConfigWheelDrive(void)
+{
+	return s_wheelDrive != 0;
+}
+
+signed char *
+WiiConfigWheelDriveSlot(void)
+{
+	return &s_wheelDrive;
+}
+
+void
+WiiConfigClampWheelDrive(void)
+{
+	if(s_wheelDrive != 0)
+		s_wheelDrive = 1;
 }

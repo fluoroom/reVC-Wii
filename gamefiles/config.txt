@@ -8,5 +8,10 @@
 # video=PAL   force 50Hz 576, ignores EURGB60
 # video=NTSC  force 480
 #
+# wheel=on    sideways Wiimote steers while driving (Mario Kart / Wii Wheel).
+#             Also Options -> Controller Setup -> WII WHEEL.  After you change
+#             it there, reVC.ini remembers it and overrides this line.
+#
 aspect=16:9
 video=NTSC
+wheel=off

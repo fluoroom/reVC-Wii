@@ -5,7 +5,7 @@
 
 ## This fork
 
-Playable Wii changes on top of [OptiJuegos/reVC-Wii](https://github.com/OptiJuegos/reVC-Wii): Wiimote+Nunchuk controls, IR gun aim, PC cheat files, and 16:9 / 4:3 output from `config.txt` for NTSC 480p / PAL 576p.
+Playable Wii changes on top of [OptiJuegos/reVC-Wii](https://github.com/OptiJuegos/reVC-Wii): Wiimote+Nunchuk controls, an optional sideways Wiimote wheel for driving, IR gun aim, PC cheat files, and 16:9 / 4:3 output from `config.txt` for NTSC 480p / PAL 576p.
 
 Homebrew Channel PNG banner and meta.xml
 
@@ -44,23 +44,47 @@ Bare Wiimote (no nunchuk): D-pad walks and steers, A/B are Cross/Circle, IR is t
 
 GameCube and Classic Controller mappings are unchanged.
 
+### Wiimote wheel
+
+Options → Controller Setup → **WII WHEEL**, or `wheel=on` in `config.txt` before the first time that menu saves. Once you change it in the menu, `reVC.ini` remembers it.
+
+Off by default. On foot nothing changes. In a vehicle, turn the remote on its side like a Wii Wheel: buttons facing you, **2 in your right hand**. Pointing it at the screen still uses the normal car controls.
+
+| Input | In car, wheel held sideways |
+| --- | --- |
+| Tilt left / right | Steer |
+| 2 | Gas |
+| 1 | Brake (with 2, burnout) |
+| B | Handbrake |
+| A | Fire |
+| D-pad Up | Exit |
+| D-pad Down | Look behind |
+| D-pad Left / Right | Look / lean out |
+| Minus | Change camera |
+| Plus | Pause |
+
+1+2 does not open the cheat picker while the wheel is steering, because that chord is gas and brake. Upright, or on foot, 1+2 still opens it. Aircraft stay on the upright remote: the wheel has no pitch.
+
 ### Cheats
 
 PC Vice City words, one per line, `#` comments ignored. Files sit next to `boot.dol`:
 
 - `apps/reVC/cheats.txt` — once, when Tommy exists (new game or load)
-- Wiimote **1+2** opens a cheat picker (game paused). **A** applies the highlighted trick and stays open; **B** or **1+2** closes and resumes. D-pad scrolls. Does not open over the pause menu or a cutscene.
+- Wiimote **1+2** opens a cheat picker (game paused). **A** applies the highlighted trick and stays open; **B** or **1+2** closes and resumes. D-pad scrolls. Does not open over the pause menu or a cutscene. While the driving wheel is steering, 1+2 is gas and brake instead.
 
 Startup template is `gamefiles/cheats.txt`. Example words: `thugstools`, `aspirine`, `panzer`, `leavemealone`.
 
 ### Display
 
-`apps/reVC/config.txt` sits next to `boot.dol` (same place as the cheat files). It is read once at boot. Missing file is 16:9 and `video=auto`.
+`apps/reVC/config.txt` sits next to `boot.dol` (same place as the cheat files). It is read once at boot. Missing file is 16:9, `video=auto`, and `wheel=off`.
 
 ```
 aspect=16:9
 video=PAL
+wheel=off
 ```
+
+`wheel` is `on` or `off` (also `1`/`0`, `yes`/`no`). See the wheel section above. The in-game toggle is the same switch.
 
 `aspect` is 16:9 or 4:3. Both fill the analog NTSC/PAL line (no pillarbox). `16:9` is anamorphic HOR+ FOV and a widescreen HUD. `4:3` keeps original FOV and HUD so a 4:3 TV is not stretched. Also accepted: `16/9`, `widescreen`, `4/3`, `standard`. SYSCONF aspect is ignored; this file is the source of truth. The in-game widescreen option toggles the same two modes. Restore defaults returns to whatever `config.txt` said.
 

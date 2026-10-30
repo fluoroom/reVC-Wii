@@ -16,6 +16,7 @@
 #include "Text.h"
 #include "Timer.h"
 #include "WiiCheats.h"
+#include "WiiPad.h"
 #include "WiiTrace.h"
 
 namespace
@@ -248,6 +249,11 @@ moveCursor(int delta)
 bool
 cheatComboJustPressed(void)
 {
+	// In the wheel, 1 and 2 are brake and gas and are held together for a
+	// burnout.  That is the same chord that opens this picker.
+	if(WiiPadWheelDriving())
+		return false;
+
 	const u32 held = WPAD_ButtonsHeld(WPAD_CHAN_0);
 	const u32 down = WPAD_ButtonsDown(WPAD_CHAN_0);
 	return (held & WPAD_BUTTON_1) != 0 && (held & WPAD_BUTTON_2) != 0

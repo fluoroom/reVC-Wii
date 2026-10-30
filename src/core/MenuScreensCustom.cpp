@@ -31,6 +31,7 @@
 #include "CarCtrl.h"
 #include "Population.h"
 #ifdef NINTENDO_WII
+#include "WiiConfig.h"
 #include "WiiVideo.h"
 #endif
 
@@ -103,6 +104,12 @@
 	#define SELECT_CONTROLLER_TYPE  MENUACTION_CFO_SELECT, "FEC_TYP", { new CCFOSelect((int8*)&FrontEndMenuManager.m_PrefsControllerType, "Controller", "Type", controllerTypes, ARRAY_SIZE(controllerTypes), false, ControllerTypeAfterChange) }, 0, 0, MENUALIGN_LEFT,
 #else
 	#define SELECT_CONTROLLER_TYPE
+#endif
+
+#ifdef NINTENDO_WII
+	#define WHEEL_DRIVE_TOGGLE MENUACTION_CFO_SELECT, "WI_WHEL", { new CCFOSelect((int8*)WiiConfigWheelDriveSlot(), "Controller", "Wheel", off_on, 2, false) }, 40, 0, MENUALIGN_LEFT,
+#else
+	#define WHEEL_DRIVE_TOGGLE
 #endif
 
 const char *filterNames[] = { "FEM_NON", "FEM_SIM", "FEM_NRM", "FEM_MOB" };
@@ -646,6 +653,7 @@ CMenuScreenCustom aScreens[] = {
 		MENUACTION_CHANGEMENU,	"FEC_JOD", {nil, SAVESLOT_NONE, MENUPAGE_DETECT_JOYSTICK}, 0, 0, MENUALIGN_CENTER,
 #endif
 		MENUACTION_CHANGEMENU,	"FEC_MOU", {nil, SAVESLOT_NONE, MENUPAGE_MOUSE_CONTROLS}, 0, 0, MENUALIGN_CENTER,
+		WHEEL_DRIVE_TOGGLE
 		MENUACTION_RESTOREDEF,	"FET_DEF", {nil, SAVESLOT_NONE, MENUPAGE_CONTROLLER_PC}, 320, 0, MENUALIGN_CENTER,
 		MENUACTION_GOBACK,		"FEDS_TB", {nil, SAVESLOT_NONE, 0}, 320, 0, MENUALIGN_CENTER,
    },
