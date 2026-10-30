@@ -391,3 +391,6 @@ sd/
 
 # tiny HBC folder (boot.dol + meta + icon + cheats) for the SD card
 hbc/
+
+# Local deploy packages (binaries + user assets)
+deploy/

@@ -36,6 +36,7 @@
 #include "User.h"
 #include "sampman.h"
 #ifdef NINTENDO_WII
+#include "WiiPad.h"
 #include "WiiVideo.h"
 #endif
 
@@ -3196,6 +3197,9 @@ CMenuManager::LoadSettings()
 #ifdef PC_PLAYER_CONTROLS
 	CCamera::m_bUseMouse3rdPerson = m_ControlMethod == CONTROL_STANDARD;
 #endif
+#ifdef NINTENDO_WII
+	WiiPadApplyControlDefaults();
+#endif
 #ifdef LEGACY_MENU_OPTIONS
 	m_PrefsVsync = m_PrefsVsyncDisp;
 #endif
@@ -3292,6 +3296,10 @@ CMenuManager::SaveSettings()
 		CFileMgr::Write(fileHandle, (char*)&m_PrefsFrameLimiter, 1);
 		CFileMgr::Write(fileHandle, (char*)&m_nPrefsVideoMode, 1);
 		CFileMgr::Write(fileHandle, m_PrefsSkinFile, 256);
+#ifdef NINTENDO_WII
+		m_ControlMethod = CONTROL_CLASSIC;
+		CCamera::m_bUseMouse3rdPerson = false;
+#endif
 		CFileMgr::Write(fileHandle, (char*)&m_ControlMethod, 1);
 		CFileMgr::Write(fileHandle, (char*)&m_PrefsLanguage, 1);
 		CFileMgr::Write(fileHandle, (char*)&m_PrefsShowHud, 1);
@@ -5010,6 +5018,7 @@ CMenuManager::ProcessUserInput(uint8 goDown, uint8 goUp, uint8 optionSelected, u
 				SetHelperText(2);
 				break;
 			case MENUACTION_CTRLMETHOD:
+#ifndef NINTENDO_WII
 				if (m_ControlMethod == CONTROL_CLASSIC) {
 					CCamera::m_bUseMouse3rdPerson = true;
 					m_ControlMethod = CONTROL_STANDARD;
@@ -5018,6 +5027,7 @@ CMenuManager::ProcessUserInput(uint8 goDown, uint8 goUp, uint8 optionSelected, u
 					m_ControlMethod = CONTROL_CLASSIC;
 				}
 				SaveSettings();
+#endif
 				break;
 #ifdef CUSTOM_FRONTEND_OPTIONS
 			case MENUACTION_CFO_SELECT:
@@ -5182,9 +5192,11 @@ CMenuManager::ProcessUserInput(uint8 goDown, uint8 goUp, uint8 optionSelected, u
 				}
 				break;
 			case MENUACTION_CTRLMETHOD:
+#ifndef NINTENDO_WII
 				m_ControlMethod = !m_ControlMethod;
 				CCamera::m_bUseMouse3rdPerson = !m_ControlMethod;
 				SaveSettings();
+#endif
 				break;
 #ifdef CUSTOM_FRONTEND_OPTIONS
 			case MENUACTION_CFO_SELECT:
